@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+# Playwright / build
+ms-playwright/
+dist/
+build/
+*.spec
+# App data / logs
+app_debug.log
+.greek_price_cart.json
+.greek_price_prefs.json
+cart.json
+.venv/.deps_ok
+.venv/.browser_ok
+.installed
+# OS
+Thumbs.db
+.DS_Store

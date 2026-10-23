@@ -1,0 +1,8 @@
+services:
+  greek-price:
+    build: .
+    image: greek-price-compare
+    container_name: greek-price-compare
+    ports:
+      - "8765:8765"
+    restart: unless-stopped
