@@ -226,7 +226,10 @@ a{color:var(--cy);text-decoration:none}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:10px}
 ::selection{background:rgba(124,92,255,.4)}
-@media(max-width:560px){.seg{margin-left:0;width:100%;justify-content:center}.logo{width:100%}}
+.langsw{display:flex;gap:3px;margin-left:12px;border:1px solid var(--stroke2);border-radius:999px;padding:3px;background:rgba(11,18,34,.6)}
+.langsw button{border:none;background:none;color:var(--mut);font:700 12px Inter;cursor:pointer;padding:5px 11px;border-radius:999px;transition:.2s}
+.langsw button.on{background:var(--grad);color:#06101f}
+@media(max-width:560px){.seg{margin-left:0;width:100%;justify-content:center}.logo{width:100%}.langsw{margin-left:auto}}
 </style>
 </head>
 <body>
@@ -234,16 +237,19 @@ a{color:var(--cy);text-decoration:none}
 
 <div class="wrap">
   <div class="top">
-    <div class="logo"><span class="spark">⚡</span> ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b></div>
+    <div class="logo"><span class="spark">⚡</span> <span data-i18n-html="appName"></span></div>
     <div class="seg" id="seg">
-      <button data-m="tech" class="on">🖥 Τεχνολογία</button>
-      <button data-m="super">🛒 Σούπερ Μάρκετ</button>
-      <button data-m="books">📚 Βιβλία</button>
-      <button data-m="health">💊 Υγεία & Ομορφιά</button>
-      <button data-m="fashion">👕 Μόδα</button>
-      <button data-m="home">🏠 Σπίτι</button>
-      <button data-m="sports">🏀 Αθλητικά</button>
-      <button data-m="all">✨ Γενική</button>
+      <button data-m="tech" class="on" data-i18n="cat_tech"></button>
+      <button data-m="super" data-i18n="cat_super"></button>
+      <button data-m="books" data-i18n="cat_books"></button>
+      <button data-m="health" data-i18n="cat_health"></button>
+      <button data-m="fashion" data-i18n="cat_fashion"></button>
+      <button data-m="home" data-i18n="cat_home"></button>
+      <button data-m="sports" data-i18n="cat_sports"></button>
+      <button data-m="all" data-i18n="cat_all"></button>
+    </div>
+    <div class="langsw" id="langsw">
+      <button data-l="el">ΕΛ</button><button data-l="en">EN</button>
     </div>
   </div>
 
@@ -251,38 +257,39 @@ a{color:var(--cy);text-decoration:none}
     <div class="srow">
       <div class="field">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="q" list="hist" placeholder="Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB" autocomplete="off" value="Samsung 990 PRO 1TB">
-        <button class="x" id="clear" title="Καθάρισμα">✕</button>
+        <input id="q" list="hist" data-i18n-ph="q_ph" autocomplete="off" value="Samsung 990 PRO 1TB">
+        <button class="x" id="clear" data-i18n-title="clear_t">✕</button>
         <datalist id="hist"></datalist>
       </div>
       <div class="field tk">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        <input id="postal" placeholder="Τ.Κ." autocomplete="off">
+        <input id="postal" data-i18n-ph="postal_ph" autocomplete="off">
       </div>
-      <button class="btn primary" id="go">Αναζήτηση</button>
-      <button class="btn ghost" id="gox" title="Μόνο προϊόντα που περιέχουν ακριβώς αυτό">Ακριβές όνομα</button>
+      <button class="btn primary" id="go" data-i18n="go"></button>
+      <button class="btn ghost" id="gox" data-i18n="gox" data-i18n-title="gox_t"></button>
     </div>
-    <div class="chips" id="chips"><span class="lbl">Πηγές</span></div>
+    <div class="chips" id="chips"><span class="lbl" data-i18n="sources_lbl"></span></div>
     <div class="subrow">
       <div class="urlf">
-        <input id="url" placeholder="…ή επικόλλησε σύνδεσμο προϊόντος από eshop">
-        <button class="btn ghost sm" id="fetch">Άντληση</button>
+        <input id="url" data-i18n-ph="url_ph">
+        <button class="btn ghost sm" id="fetch" data-i18n="fetch"></button>
       </div>
-      <button class="btn ghost sm" id="toggleFilters">⚙ Φίλτρα</button>
+      <button class="btn ghost sm" id="toggleFilters" data-i18n="filters_btn"></button>
     </div>
     <div class="filters" id="filters">
-      <label>Τιμή <input class="mini" id="fmin" type="number" placeholder="από €"></label>
-      <label><input class="mini" id="fmax" type="number" placeholder="έως €"></label>
-      <label>Διαθέσιμα <span class="switch" id="fstock"><i></i></span></label>
-      <label>Βαθμ. ≥ <input class="mini" id="frating" type="number" placeholder="0-5" step="0.5" min="0" max="5"></label>
+      <label data-i18n="f_price"></label>
+      <label><input class="mini" id="fmin" type="number" data-i18n-ph="f_min_ph"></label>
+      <label><input class="mini" id="fmax" type="number" data-i18n-ph="f_max_ph"></label>
+      <label><span data-i18n="f_stock"></span> <span class="switch" id="fstock"><i></i></span></label>
+      <label><span data-i18n="f_rating"></span> <input class="mini" id="frating" type="number" placeholder="0-5" step="0.5" min="0" max="5"></label>
       <span class="count" id="fcount"></span>
     </div>
   </div>
 
-  <div class="status" id="status">Έτοιμο. Γράψε προϊόν και πάτησε Αναζήτηση.
+  <div class="status" id="status"><span id="statusTxt"></span>
     <span class="bar" id="bar"><i></i></span></div>
 
-  <div class="sect"><span id="sectlbl">Προϊόντα</span><span class="ln"></span></div>
+  <div class="sect"><span id="sectlbl"></span><span class="ln"></span></div>
   <div class="grid-p" id="grid"></div>
 </div>
 
@@ -299,30 +306,30 @@ a{color:var(--cy);text-decoration:none}
   </div>
   <div class="sh-act">
     <select id="osort">
-      <option value="price">Τιμή ↑</option>
-      <option value="total">Συνολικό κόστος ↑</option>
-      <option value="rating">Αξιολόγηση ↓</option>
-      <option value="shop">Κατάστημα Α–Ω</option>
+      <option value="price" data-i18n="sort_price"></option>
+      <option value="total" data-i18n="sort_total"></option>
+      <option value="rating" data-i18n="sort_rating"></option>
+      <option value="shop" data-i18n="sort_shop"></option>
     </select>
-    <button class="btn ghost sm" id="shHist">📈 Ιστορικό</button>
-    <button class="btn ghost sm" id="shDec">💡 Σύσταση</button>
-    <button class="btn ghost sm" id="shAlert">🔔 Alert τιμής</button>
+    <button class="btn ghost sm" id="shHist" data-i18n="sh_hist"></button>
+    <button class="btn ghost sm" id="shDec" data-i18n="sh_dec"></button>
+    <button class="btn ghost sm" id="shAlert" data-i18n="sh_alert"></button>
   </div>
   <div class="sh-list" id="shList"></div>
 </aside>
 
 <!-- compare + cart -->
-<button class="cmpbtn" id="cmpBtn">⇄ Σύγκριση <span class="cnt" id="cmpCnt">0</span></button>
-<button class="cartbtn" id="cartBtn">🛒 Καλάθι <span class="cnt" id="cartCnt">0</span></button>
+<button class="cmpbtn" id="cmpBtn"><span data-i18n="cmp_btn"></span> <span class="cnt" id="cmpCnt">0</span></button>
+<button class="cartbtn" id="cartBtn"><span data-i18n="cart_btn"></span> <span class="cnt" id="cartCnt">0</span></button>
 <div class="scrim" id="cartScrim"></div>
 <aside class="cart" id="cart">
-  <div class="ch">🛒 Καλάθι <button class="back" id="cartBack">✕</button></div>
+  <div class="ch"><span data-i18n="cart_h"></span> <button class="back" id="cartBack">✕</button></div>
   <div class="ci" id="cartItems"></div>
   <div class="cf">
-    <div class="tot"><span style="color:var(--mut);font-weight:600">Σύνολο</span><b id="cartTotal">€0.00</b></div>
+    <div class="tot"><span style="color:var(--mut);font-weight:600" data-i18n="total"></span><b id="cartTotal">€0.00</b></div>
     <div class="row">
-      <button class="btn ghost sm" id="cartCsv" style="flex:1">Εξαγωγή CSV</button>
-      <button class="btn ghost sm" id="cartClear" style="flex:1">Καθάρισμα</button>
+      <button class="btn ghost sm" id="cartCsv" style="flex:1" data-i18n="cart_csv"></button>
+      <button class="btn ghost sm" id="cartClear" style="flex:1" data-i18n="cart_clear"></button>
     </div>
   </div>
 </aside>
@@ -337,6 +344,103 @@ const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;
 function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
 function exactMatch(t,q){const nt=norm(t),tk=norm(q).split(/\s+/).filter(Boolean);return tk.length>0&&tk.every(x=>nt.includes(x))}
 
+/* ---------- i18n (ΕΛ / EN) ---------- */
+const T={
+  el:{
+    appName:'ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b>',
+    cat_tech:'🖥 Τεχνολογία',cat_super:'🛒 Σούπερ Μάρκετ',cat_books:'📚 Βιβλία',
+    cat_health:'💊 Υγεία & Ομορφιά',cat_fashion:'👕 Μόδα',cat_home:'🏠 Σπίτι',
+    cat_sports:'🏀 Αθλητικά',cat_all:'✨ Γενική',
+    sect_tech:'Προϊόντα',sect_super:'Σούπερ Μάρκετ',sect_books:'Βιβλία',sect_health:'Υγεία & Ομορφιά',
+    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_all:'Γενική αναζήτηση',
+    q_ph:'Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB',clear_t:'Καθάρισμα',postal_ph:'Τ.Κ.',
+    go:'Αναζήτηση',gox:'Ακριβές όνομα',gox_t:'Μόνο προϊόντα που περιέχουν ακριβώς αυτό',
+    sources_lbl:'Πηγές',url_ph:'…ή επικόλλησε σύνδεσμο προϊόντος από eshop',fetch:'Άντληση',
+    filters_btn:'⚙ Φίλτρα',f_price:'Τιμή',f_min_ph:'από €',f_max_ph:'έως €',f_stock:'Διαθέσιμα',f_rating:'Βαθμ. ≥',
+    status_ready:'Έτοιμο. Γράψε προϊόν και πάτησε Αναζήτηση.',
+    sort_price:'Τιμή ↑',sort_total:'Συνολικό κόστος ↑',sort_rating:'Αξιολόγηση ↓',sort_shop:'Κατάστημα Α–Ω',
+    sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',
+    cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
+    cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',
+    pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
+    exact_note:'  · ακριβές όνομα',error:'Σφάλμα: ',
+    no_products:'Δεν βρέθηκαν προϊόντα.',try_other:'Δοκίμασε άλλη διατύπωση ή πηγή.',
+    markets:'μάρκετ',stores_short:'καταστ.',no_photo:'χωρίς φωτο',add_compare_t:'Προσθήκη στη σύγκριση',from:'από',
+    max3:'Μέχρι 3 προϊόντα',cmp_product:'Προϊόν',cmp_source:'Πηγή',cmp_price:'Τιμή από',
+    cmp_stores:'Καταστήματα',cmp_rating:'Βαθμολογία',cmp_link:'Σύνδεσμος',open_link:'Άνοιγμα ↗',
+    cmp_title:'⇄ Σύγκριση προϊόντων',stores_word:'καταστήματα',store_default:'Κατάστημα',
+    no_stores:'Δεν βρέθηκαν καταστήματα.',total_short:'σύν. ',to_cart_t:'Στο καλάθι',
+    hist_only_bp:'Μόνο για προϊόντα BestPrice',hist_title:'📈 Ιστορικό τιμής',dec_title:'💡 Σύσταση αγοράς',
+    alert_prompt:t=>`Ειδοποίησέ με όταν «${t}» πέσει κάτω από (€):`,
+    alert_hit:(t,now,th)=>`💸 ${t} τώρα ${now} (<${th})`,
+    added_cart:'Προστέθηκε στο καλάθι',confirm_clear:'Να αδειάσει το καλάθι;',
+    csv_head:['Προϊόν','Κατάστημα','Ποσότητα','Τιμή','Σύνολο','Σύνδεσμος'],
+    fetch_busy:'Άντληση…',fetch_notfound:'δεν βρέθηκε',link_source:'Σύνδεσμος',
+    spark_cap:'Διάμεσος ανά περίοδο (παλιότερα → τώρα)· σκιά = εύρος ελάχ.–μέγ.',
+    src_super:'Σούπερ Μάρκετ',src_politeia:'Πολιτεία'
+  },
+  en:{
+    appName:'PRICE <b>COMPARE</b>',
+    cat_tech:'🖥 Technology',cat_super:'🛒 Supermarket',cat_books:'📚 Books',
+    cat_health:'💊 Health & Beauty',cat_fashion:'👕 Fashion',cat_home:'🏠 Home',
+    cat_sports:'🏀 Sports',cat_all:'✨ General',
+    sect_tech:'Products',sect_super:'Supermarket',sect_books:'Books',sect_health:'Health & Beauty',
+    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_all:'General search',
+    q_ph:'What are you looking for? e.g. Samsung 990 PRO 1TB',clear_t:'Clear',postal_ph:'Postal',
+    go:'Search',gox:'Exact name',gox_t:'Only products that contain exactly this',
+    sources_lbl:'Sources',url_ph:'…or paste a product link from an eshop',fetch:'Fetch',
+    filters_btn:'⚙ Filters',f_price:'Price',f_min_ph:'from €',f_max_ph:'to €',f_stock:'In stock',f_rating:'Rating ≥',
+    status_ready:'Ready. Type a product and press Search.',
+    sort_price:'Price ↑',sort_total:'Total cost ↑',sort_rating:'Rating ↓',sort_shop:'Store A–Z',
+    sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',
+    cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
+    cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',
+    pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
+    exact_note:'  · exact name',error:'Error: ',
+    no_products:'No products found.',try_other:'Try different wording or another source.',
+    markets:'markets',stores_short:'stores',no_photo:'no photo',add_compare_t:'Add to compare',from:'from',
+    max3:'Up to 3 products',cmp_product:'Product',cmp_source:'Source',cmp_price:'Price from',
+    cmp_stores:'Stores',cmp_rating:'Rating',cmp_link:'Link',open_link:'Open ↗',
+    cmp_title:'⇄ Compare products',stores_word:'stores',store_default:'Store',
+    no_stores:'No stores found.',total_short:'tot. ',to_cart_t:'Add to cart',
+    hist_only_bp:'Only for BestPrice products',hist_title:'📈 Price history',dec_title:'💡 Buying advice',
+    alert_prompt:t=>`Notify me when "${t}" drops below (€):`,
+    alert_hit:(t,now,th)=>`💸 ${t} now ${now} (<${th})`,
+    added_cart:'Added to cart',confirm_clear:'Empty the cart?',
+    csv_head:['Product','Store','Quantity','Price','Total','Link'],
+    fetch_busy:'Fetching…',fetch_notfound:'not found',link_source:'Link',
+    spark_cap:'Median per period (older → now); shaded = min–max range',
+    src_super:'Supermarket',src_politeia:'Politeia'
+  }
+};
+let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
+if(LANG!=='en'&&LANG!=='el')LANG='el';
+function t(k){const v=(T[LANG]||T.el)[k];return v==null?k:v}
+/* display name for a source chip (backend value stays canonical) */
+function srcDisplay(label){
+  if(label==='Σούπερ Μάρκετ')return t('src_super');
+  if(label==='Πολιτεία')return t('src_politeia');
+  return label;
+}
+function applyStatic(){
+  $$('[data-i18n]').forEach(e=>e.textContent=t(e.dataset.i18n));
+  $$('[data-i18n-html]').forEach(e=>e.innerHTML=t(e.dataset.i18nHtml));
+  $$('[data-i18n-ph]').forEach(e=>e.placeholder=t(e.dataset.i18nPh));
+  $$('[data-i18n-title]').forEach(e=>e.title=t(e.dataset.i18nTitle));
+}
+function setLang(l){
+  if(l!=='en'&&l!=='el')l='el';
+  LANG=l; save('gpc_lang',l);
+  document.documentElement.lang=l;
+  $$('#langsw button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
+  applyStatic();
+  $('#sectlbl').textContent=t('sect_'+mode);
+  if(!$('#bar').classList.contains('on'))$('#statusTxt').textContent=t('status_ready');
+  renderChips();
+  if(allProducts.length)renderProducts();
+  if($('#cart').classList.contains('on'))renderCart(); else cartCount();
+}
+
 const SOURCES={
   tech:[['BestPrice','src_bp'],['Skroutz','src_sk'],['Public','src_pu'],['e-shop.gr','src_es'],['eBay','src_eb']],
   super:[['Σούπερ Μάρκετ','src_sm']],
@@ -347,8 +451,6 @@ const SOURCES={
   sports:[['BestPrice','src_bp_sp'],['Skroutz','src_sk_sp']],
   all:[['BestPrice','src_bp_a'],['Skroutz','src_sk_a'],['Public','src_pu_a']]
 };
-const SECT={tech:'Προϊόντα',super:'Σούπερ Μάρκετ',books:'Βιβλία',health:'Υγεία & Ομορφιά',
-  fashion:'Μόδα & Αξεσουάρ',home:'Σπίτι',sports:'Αθλητικά',all:'Γενική αναζήτηση'};
 let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compare=[];
 let cart=load('gpc_cart',[]), history=load('gpc_hist',[]), alerts=load('gpc_alerts',[]);
 let srcState={};
@@ -362,24 +464,24 @@ function renderChips(){
   SOURCES[mode].forEach(([label,id])=>{
     if(!(id in srcState)) srcState[id]=true;
     const c=document.createElement('div');
-    c.className='chip'+(srcState[id]?' on':''); c.innerHTML=`<span class="dot"></span>${esc(label)}`;
+    c.className='chip'+(srcState[id]?' on':''); c.innerHTML=`<span class="dot"></span>${esc(srcDisplay(label))}`;
     c.onclick=()=>{srcState[id]=!srcState[id];c.classList.toggle('on',srcState[id])};
     box.appendChild(c);
   });
 }
 function setMode(m){mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-  $('#sectlbl').textContent=SECT[m];renderChips()}
+  $('#sectlbl').textContent=t('sect_'+m);renderChips()}
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
 
 /* ---------- search ---------- */
-function busy(on,txt){$('#bar').classList.toggle('on',on);if(txt!=null)$('#status').firstChild.textContent=txt+' ';
+function busy(on,txt){$('#bar').classList.toggle('on',on);if(txt!=null)$('#statusTxt').textContent=txt;
   $('#go').disabled=on;$('#gox').disabled=on}
 async function doSearch(exact){
   const q=$('#q').value.trim(); if(!q)return;
   const sources=SOURCES[mode].filter(([l,id])=>srcState[id]).map(([l])=>l);
-  if(!sources.length){toast('Διάλεξε τουλάχιστον μία πηγή','⚠️');return}
+  if(!sources.length){toast(t('pick_source'),'⚠️');return}
   const slow=sources.some(s=>['Skroutz','Public','Πολιτεία'].includes(s));
-  busy(true,'⏳ Αναζήτηση…'+(slow?' (μέσω browser, ίσως αργήσει)':''));
+  busy(true,t('searching')+(slow?t('via_browser'):''));
   skeletons();
   try{
     const d=await api('/api/search?q='+encodeURIComponent(q)+'&sources='+encodeURIComponent(sources.join(',')));
@@ -388,9 +490,9 @@ async function doSearch(exact){
     allProducts=prods; compare=[]; updateCmp(); applyFilters();
     const sum=Object.entries(d.counts||{}).map(([k,v])=>`${k}: ${v}`).join(' · ');
     const notes=(d.diagnostics||[]).filter(n=>n&&!/: 0 /.test(n)&&!/προϊόντα$/.test(n));
-    busy(false,'✓ '+sum+(exact?'  · ακριβές όνομα':'')+(notes.length?'  — '+notes.join(' | '):''));
+    busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
     pushHistory(q); checkAlerts(prods);
-  }catch(e){busy(false,'Σφάλμα: '+e)}
+  }catch(e){busy(false,t('error')+e)}
 }
 $('#go').onclick=()=>doSearch(false);
 $('#gox').onclick=()=>doSearch(true);
@@ -422,18 +524,18 @@ function applyFilters(){
 /* ---------- product grid ---------- */
 function renderProducts(){
   const g=$('#grid');
-  if(!products.length){g.innerHTML='<div class="empty"><div class="big">🔍</div>Δεν βρέθηκαν προϊόντα.<br>Δοκίμασε άλλη διατύπωση ή πηγή.</div>';return}
+  if(!products.length){g.innerHTML=`<div class="empty"><div class="big">🔍</div>${esc(t('no_products'))}<br>${esc(t('try_other'))}</div>`;return}
   g.innerHTML=products.map((p,i)=>{
     const img=p.image?`background-image:url('${esc(p.image)}')`:'';
     const r=parseFloat(p.rating);
     const rtag=(isFinite(r)&&r>0&&r<=5)?`<span class="tag star">★ ${r.toFixed(1)}</span>`:'';
-    const cnt=p.offer_count?`<span class="tag">${p.offer_count} ${mode==='super'?'μάρκετ':'καταστ.'}</span>`:'';
+    const cnt=p.offer_count?`<span class="tag">${p.offer_count} ${mode==='super'?t('markets'):t('stores_short')}</span>`:'';
     const sel=compare.includes(p);
     return `<div class="card${sel?' sel':''}" style="animation-delay:${i*40}ms" data-i="${i}">
-      <button class="cmp" data-i="${i}" title="Προσθήκη στη σύγκριση">⇄</button>
-      <div class="thumb" style="${img}">${p.image?'':'<span class="ph">χωρίς φωτο</span>'}<span class="src">${esc(p.source||'')}</span></div>
+      <button class="cmp" data-i="${i}" title="${esc(t('add_compare_t'))}">⇄</button>
+      <div class="thumb" style="${img}">${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(p.source||'')}</span></div>
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
-        <div class="meta"><div class="price"><small>από</small>${euro(p.price_from)}</div>
+        <div class="meta"><div class="price"><small>${esc(t('from'))}</small>${euro(p.price_from)}</div>
         <div class="tags">${rtag}${cnt}</div></div></div></div>`;
   }).join('');
   $$('#grid .card').forEach(c=>c.onclick=()=>openProduct(+c.dataset.i));
@@ -444,7 +546,7 @@ function renderProducts(){
 function toggleCompare(p){
   const i=compare.indexOf(p);
   if(i>=0)compare.splice(i,1);
-  else{ if(compare.length>=3){toast('Μέχρι 3 προϊόντα','ℹ️');return} compare.push(p) }
+  else{ if(compare.length>=3){toast(t('max3'),'ℹ️');return} compare.push(p) }
   updateCmp(); renderProducts();
 }
 function updateCmp(){const b=$('#cmpBtn');$('#cmpCnt').textContent=compare.length;b.classList.toggle('show',compare.length>=2)}
@@ -455,14 +557,14 @@ function openCompare(){
   const rowFn=(label,fn)=>`<tr><th>${label}</th>${cols.map(p=>`<td>${fn(p)}</td>`).join('')}</tr>`;
   const html=`<div style="overflow:auto"><table class="cmptbl">
     <tr><th></th>${cols.map(p=>`<td>${p.image?`<div class="ci-img" style="background-image:url('${esc(p.image)}')"></div>`:''}<button class="rmc" data-t="${esc(p.title)}">✕</button></td>`).join('')}</tr>
-    ${rowFn('Προϊόν',p=>`<b style="font:600 13px Inter">${esc((p.title||'—').slice(0,70))}</b>`)}
-    ${rowFn('Πηγή',p=>esc(p.source||'—'))}
-    ${rowFn('Τιμή από',p=>`<span style="color:var(--gr);font:800 16px Orbitron">${euro(p.price_from)}</span>`)}
-    ${rowFn('Καταστήματα',p=>p.offer_count||'—')}
-    ${rowFn('Βαθμολογία',p=>{const r=parseFloat(p.rating);return (isFinite(r)&&r>0&&r<=5)?`<span style="color:var(--am)">★ ${r.toFixed(1)}</span>`:'—'})}
-    ${rowFn('Σύνδεσμος',p=>p.product_url?`<a href="${esc(p.product_url)}" target="_blank" rel="noopener">Άνοιγμα ↗</a>`:'—')}
+    ${rowFn(esc(t('cmp_product')),p=>`<b style="font:600 13px Inter">${esc((p.title||'—').slice(0,70))}</b>`)}
+    ${rowFn(esc(t('cmp_source')),p=>esc(p.source||'—'))}
+    ${rowFn(esc(t('cmp_price')),p=>`<span style="color:var(--gr);font:800 16px Orbitron">${euro(p.price_from)}</span>`)}
+    ${rowFn(esc(t('cmp_stores')),p=>p.offer_count||'—')}
+    ${rowFn(esc(t('cmp_rating')),p=>{const r=parseFloat(p.rating);return (isFinite(r)&&r>0&&r<=5)?`<span style="color:var(--am)">★ ${r.toFixed(1)}</span>`:'—'})}
+    ${rowFn(esc(t('cmp_link')),p=>p.product_url?`<a href="${esc(p.product_url)}" target="_blank" rel="noopener">${esc(t('open_link'))}</a>`:'—')}
   </table></div>`;
-  const o=dialogHTML('⇄ Σύγκριση προϊόντων',html);
+  const o=dialogHTML(t('cmp_title'),html);
   o.querySelectorAll('.rmc').forEach(b=>b.onclick=()=>{compare=compare.filter(p=>p.title!==b.dataset.t);updateCmp();renderProducts();o.remove();if(compare.length>=2)openCompare()});
 }
 
@@ -472,7 +574,7 @@ $('#shBack').onclick=()=>openSheet(false); $('#scrim').onclick=()=>openSheet(fal
 async function openProduct(i){
   const p=products[i]; curProduct=p; offers=[];
   $('#shTitle').textContent=p.title||'—';
-  $('#shSub').textContent=(p.source||'')+(p.offer_count?` · ${p.offer_count} καταστήματα`:'');
+  $('#shSub').textContent=(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
   openSheet(true);
@@ -481,7 +583,7 @@ async function openProduct(i){
     else if(p.source==='Skroutz'&&/\/s\/\d+\//.test(p.product_url||'')){
       const d=await api('/api/skroutz_offers?url='+encodeURIComponent(p.product_url));offers=d.offers||[];
       if(d.error&&!offers.length)$('#shSub').textContent='Skroutz: '+d.error;
-    } else if(p._direct){const d=p._direct;offers=[{source:d.source,merchant_name:d.merchant_name||'Κατάστημα',
+    } else if(p._direct){const d=p._direct;offers=[{source:d.source,merchant_name:d.merchant_name||t('store_default'),
         merchant_rating:d.rating,item_price:d.price,shipping_price:null,total_price:null,
         availability:d.availability||'',offer_url:d.url||''}];
     } else if(p.product_id){
@@ -491,7 +593,7 @@ async function openProduct(i){
     renderOffers();
     if(!p.image&&p.product_id){const bi=await api('/api/bp_image?product_id='+encodeURIComponent(p.product_id));
       if(bi.image){p.image=bi.image;$('#shImg').style.backgroundImage=`url('${esc(bi.image)}')`}}
-  }catch(e){$('#shList').innerHTML='<div class="empty">Σφάλμα: '+esc(''+e)+'</div>'}
+  }catch(e){$('#shList').innerHTML='<div class="empty">'+esc(t('error'))+esc(''+e)+'</div>'}
 }
 $('#osort').onchange=renderOffers;
 function renderOffers(){
@@ -503,44 +605,44 @@ function renderOffers(){
   else o.sort((a,b)=>(a.item_price==null)-(b.item_price==null)||(a.item_price||1e9)-(b.item_price||1e9));
   offers=o;
   const L=$('#shList');
-  if(!o.length){L.innerHTML='<div class="empty"><div class="big">🏷️</div>Δεν βρέθηκαν καταστήματα.</div>';return}
+  if(!o.length){L.innerHTML=`<div class="empty"><div class="big">🏷️</div>${esc(t('no_stores'))}</div>`;return}
   L.innerHTML=o.map((x,i)=>{
     const r=parseFloat(x.merchant_rating);
     const rc=x.merchant_rating_count?` (${x.merchant_rating_count})`:'';
     const rat=(isFinite(r)&&r>0&&r<=5)?`★ ${r.toFixed(1)}${rc}`:'';
     const extra=[x.availability,x.delivery_estimate,rat].filter(Boolean).join(' · ');
     const name=x.offer_url?`<a href="${esc(x.offer_url)}" target="_blank" rel="noopener">${esc(x.merchant_name||'—')}</a>`:esc(x.merchant_name||'—');
-    const tot=(typeof x.total_price==='number')?`<small>σύν. ${euro(x.total_price)}</small>`:'';
+    const tot=(typeof x.total_price==='number')?`<small>${esc(t('total_short'))}${euro(x.total_price)}</small>`:'';
     return `<div class="offer${i===0?' best':''}" style="animation-delay:${i*35}ms">
       <div class="shop">${name}<small>${esc(extra)||'&nbsp;'}</small></div>
       <div class="op">${euro(x.item_price)}${tot}</div>
-      <button class="add" data-i="${i}" title="Στο καλάθι">＋</button></div>`;
+      <button class="add" data-i="${i}" title="${esc(t('to_cart_t'))}">＋</button></div>`;
   }).join('');
   $$('#shList .add').forEach(b=>b.onclick=()=>addToCart(offers[+b.dataset.i]));
 }
-$('#shHist').onclick=async()=>{if(!curProduct?.product_id)return toast('Μόνο για προϊόντα BestPrice','ℹ️');
+$('#shHist').onclick=async()=>{if(!curProduct?.product_id)return toast(t('hist_only_bp'),'ℹ️');
   const d=await api('/api/history?product_id='+encodeURIComponent(curProduct.product_id));
   const chart=sparkSVG(d.chart);
-  dialogHTML('📈 Ιστορικό τιμής',(chart?`<div style="margin-bottom:14px">${chart}</div>`:'')+
+  dialogHTML(t('hist_title'),(chart?`<div style="margin-bottom:14px">${chart}</div>`:'')+
     `<pre style="white-space:pre-wrap;font:500 13px/1.6 Inter;color:var(--ink);margin:0">${esc(d.text||'—')}</pre>`)};
-$('#shDec').onclick=async()=>{const q=$('#q').value.trim();const d=await api('/api/decision?q='+encodeURIComponent(q)+'&postal='+encodeURIComponent($('#postal').value.trim()));dialog('💡 Σύσταση αγοράς',d.text||'—')};
+$('#shDec').onclick=async()=>{const q=$('#q').value.trim();const d=await api('/api/decision?q='+encodeURIComponent(q)+'&postal='+encodeURIComponent($('#postal').value.trim()));dialog(t('dec_title'),d.text||'—')};
 $('#shAlert').onclick=()=>{if(!curProduct)return;const cur=parseFloat(curProduct.price_from)||'';
-  const v=prompt(`Ειδοποίησέ με όταν «${curProduct.title}» πέσει κάτω από (€):`,cur);
+  const v=prompt(t('alert_prompt')(curProduct.title),cur);
   if(v==null)return;const th=parseFloat(v);if(!isFinite(th))return;
   alerts=alerts.filter(a=>a.title!==curProduct.title);alerts.push({title:curProduct.title,th});save('gpc_alerts',alerts);
   toast(`Alert: ${curProduct.title.slice(0,30)} < ${euro(th)}`,'🔔')};
 function checkAlerts(prods){alerts.forEach(a=>{const hit=prods.find(p=>p.title===a.title&&parseFloat(p.price_from)<=a.th);
-  if(hit)toast(`💸 ${a.title.slice(0,28)} τώρα ${euro(hit.price_from)} (<${euro(a.th)})`,'🔔')})}
+  if(hit)toast(t('alert_hit')(a.title.slice(0,28),euro(hit.price_from),euro(a.th)),'🔔')})}
 
 /* ---------- cart ---------- */
 function openCart(on){$('#cart').classList.toggle('on',on);$('#cartScrim').classList.toggle('on',on)}
 $('#cartBtn').onclick=()=>{renderCart();openCart(true)};
 $('#cartBack').onclick=()=>openCart(false);$('#cartScrim').onclick=()=>openCart(false);
-function addToCart(o){if(!o)return;const title=curProduct?.title||'';const shop=o.merchant_name||o.source||'Κατάστημα';
+function addToCart(o){if(!o)return;const title=curProduct?.title||'';const shop=o.merchant_name||o.source||t('store_default');
   let price=o.item_price!=null?o.item_price:o.total_price;let url=o.offer_url||(curProduct&&(curProduct.product_url))||'';
   const f=cart.find(c=>c.title===title&&c.shop===shop&&c.url===url);
   if(f)f.qty++;else cart.push({title,shop,price,qty:1,url});save('gpc_cart',cart);cartCount();
-  toast('Προστέθηκε στο καλάθι','🛒');if($('#cart').classList.contains('on'))renderCart()}
+  toast(t('added_cart'),'🛒');if($('#cart').classList.contains('on'))renderCart()}
 function cartCount(){const n=cart.reduce((s,c)=>s+c.qty,0);$('#cartCnt').textContent=n}
 function renderCart(){
   const box=$('#cartItems');let tot=0;
@@ -549,25 +651,25 @@ function renderCart(){
     return `<div class="citem"><div class="ct"><b>${nm}</b><small>${esc(c.shop)} · ${euro(c.price)}</small></div>
       <div class="q"><button data-d="-1" data-i="${i}">－</button>${c.qty}<button data-d="1" data-i="${i}">＋</button></div>
       <div class="cp">${euro(line)}</div><button class="rm" data-r="${i}">🗑</button></div>`;
-  }).join('')||'<div class="empty"><div class="big">🛒</div>Άδειο καλάθι</div>';
+  }).join('')||`<div class="empty"><div class="big">🛒</div>${esc(t('cart_empty'))}</div>`;
   $('#cartTotal').textContent=euro(tot);
   box.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;cart[i].qty=Math.max(1,cart[i].qty+(+b.dataset.d));save('gpc_cart',cart);renderCart();cartCount()});
   box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.r,1);save('gpc_cart',cart);renderCart();cartCount()});
 }
-$('#cartClear').onclick=()=>{if(cart.length&&confirm('Να αδειάσει το καλάθι;')){cart=[];save('gpc_cart',cart);renderCart();cartCount()}};
-$('#cartCsv').onclick=()=>{if(!cart.length)return;let tot=0;const rows=[['Προϊόν','Κατάστημα','Ποσότητα','Τιμή','Σύνολο','Σύνδεσμος']];
+$('#cartClear').onclick=()=>{if(cart.length&&confirm(t('confirm_clear'))){cart=[];save('gpc_cart',cart);renderCart();cartCount()}};
+$('#cartCsv').onclick=()=>{if(!cart.length)return;let tot=0;const rows=[t('csv_head').slice()];
   cart.forEach(c=>{const p=parseFloat(c.price),l=isFinite(p)?p*c.qty:'';if(l!=='')tot+=l;
     rows.push([c.title,c.shop,c.qty,isFinite(p)?p.toFixed(2):'',l===''?'':l.toFixed(2),c.url||''])});
-  rows.push(['','','','','Σύνολο',tot.toFixed(2)]);
+  rows.push(['','','','',t('total'),tot.toFixed(2)]);
   const csv=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download='kalathi.csv';a.click()};
 
 /* ---------- url fetch ---------- */
-$('#fetch').onclick=async()=>{const u=$('#url').value.trim();if(!u)return;busy(true,'Άντληση…');
-  try{const d=await api('/api/fetch_url?url='+encodeURIComponent(u));if(!d.product){busy(false,'Σφάλμα: '+(d.error||'δεν βρέθηκε'));return}
-    const pr=d.product;allProducts.unshift({source:pr.merchant_name||'Σύνδεσμος',title:pr.title,price_from:pr.price,
+$('#fetch').onclick=async()=>{const u=$('#url').value.trim();if(!u)return;busy(true,t('fetch_busy'));
+  try{const d=await api('/api/fetch_url?url='+encodeURIComponent(u));if(!d.product){busy(false,t('error')+(d.error||t('fetch_notfound')));return}
+    const pr=d.product;allProducts.unshift({source:pr.merchant_name||t('link_source'),title:pr.title,price_from:pr.price,
       offer_count:pr.offer_count||1,rating:pr.rating,image:pr.image||'',product_id:'',product_url:pr.url||'',_direct:pr});
-    $('#url').value='';applyFilters();busy(false,'✓ '+(pr.title||''))}catch(e){busy(false,'Σφάλμα: '+e)}};
+    $('#url').value='';applyFilters();busy(false,'✓ '+(pr.title||''))}catch(e){busy(false,t('error')+e)}};
 
 /* ---------- history / dialog / toast ---------- */
 function pushHistory(q){history=history.filter(h=>h!==q);history.unshift(q);history=history.slice(0,20);save('gpc_hist',history);renderHistory()}
@@ -600,13 +702,18 @@ function sparkSVG(chart){
     <defs><linearGradient id="lg" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
     ${band}<path d="${line}" fill="none" stroke="url(#lg)" stroke-width="2.5"/>${dots}${vals}${labs}</svg>
-    <div style="color:var(--mut2);font:500 11px Inter;margin-top:6px">Διάμεσος ανά περίοδο (παλιότερα → τώρα)· σκιά = εύρος ελάχ.–μέγ.</div>`;
+    <div style="color:var(--mut2);font:500 11px Inter;margin-top:6px">${esc(t('spark_cap'))}</div>`;
 }
 function toast(msg,ic){const t=document.createElement('div');t.className='toast';t.innerHTML=`<span class="ic">${ic||'✓'}</span>${esc(msg)}`;
   $('#toasts').appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transform='translateY(10px)';t.style.transition='.3s';setTimeout(()=>t.remove(),300)},3200)}
 
+/* ---------- language toggle ---------- */
+$('#langsw').onclick=e=>{const b=e.target.closest('button');if(b)setLang(b.dataset.l)};
+
 /* ---------- init ---------- */
-renderChips();renderHistory();cartCount();updateCmp();
+setLang(LANG);
+setMode(mode);
+renderHistory();cartCount();updateCmp();
 </script>
 </body>
 </html>

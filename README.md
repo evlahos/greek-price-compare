@@ -1,64 +1,60 @@
-# ⚡ Σύγκριση Τιμών — Greek Price Compare
+# Σύγκριση Τιμών / Price Compare — v0.18 (δίγλωσσο UI)
 
-Εφαρμογή σύγκρισης τιμών από μεγάλα ελληνικά e-shops, βιβλιοπωλεία και σούπερ
-μάρκετ, με μοντέρνο (dark/neon) HTML περιβάλλον και backend σε Python.
+Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
+εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
 
-Τρέχει **σαν εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**, και
-προαιρετικά με **Docker**.
+## Εγκατάσταση (Windows, με ένα κλικ)
+1. Κάνε **εξαγωγή** του zip.
+2. Διπλό κλικ στο **`ΕΓΚΑΤΑΣΤΑΣΗ.bat`** → στήνει τα πάντα (Python αν λείπει,
+   βιβλιοθήκες, Chromium) και ανοίγει την εφαρμογή σε **δικό της παράθυρο**.
+   Φτιάχνει και συντόμευση «Σύγκριση Τιμών» στην Επιφάνεια Εργασίας.
+- Για άνοιγμα **στον browser**: διπλό κλικ στο **`Στον browser.bat`**.
+
+> Αν το κατέβασμα του Chromium μπλοκάρει (antivirus/δίκτυο), δεν πειράζει — η
+> εφαρμογή χρησιμοποιεί αυτόματα τον **Edge** των Windows για Skroutz/Public/Πολιτεία.
 
 ## Πηγές
-- **BestPrice** — δημόσιο MCP (aggregator δεκάδων καταστημάτων).
-- **Skroutz** & **Public** — μέσω headless browser (Playwright ή ο Edge των Windows).
-- **e-shop.gr** — απλό HTTP (server-rendered).
-- **eBay.de** — αγγελίες σε EUR (μέσω browser).
-- **Πολιτεία** — βιβλία (React SPA → browser).
-- **Σούπερ Μάρκετ** — επίσημο κρατικό API `posokanei.gov.gr` (Σκλαβενίτης, ΑΒ,
-  Μασούτης, My Market, Γαλαξίας…).
+- **BestPrice** (MCP, aggregator), **Skroutz** & **Public** (Playwright/Edge),
+  **e-shop.gr** (HTTP), **Πολιτεία** (βιβλία), **Σούπερ Μάρκετ** (posokanei.gov.gr).
 
-## Γρήγορη εκκίνηση (Windows)
-1. Κατέβασε/κάνε clone το repo.
-2. Διπλό κλικ στο **`ΕΓΚΑΤΑΣΤΑΣΗ.bat`** → στήνει τα πάντα (Python αν λείπει,
-   βιβλιοθήκες, Chromium) και ανοίγει την εφαρμογή σε δικό της παράθυρο.
-   - Άνοιγμα **στον browser**: **`Στον browser.bat`**.
+## Χαρακτηριστικά UI
+- Κατηγορίες Τεχνολογία / Σούπερ Μάρκετ / Βιβλία (segmented control).
+- Αναζήτηση + «Ακριβές όνομα» (με ISBN), ιστορικό αναζητήσεων (autocomplete).
+- Κάρτες προϊόντων με φωτογραφία, animations· κλικ → **πλαϊνή σελίδα** με όλα
+  τα καταστήματα (ταξινόμηση, ιστορικό τιμής, σύσταση, **alert τιμής**).
+- Φίλτρα (τιμή από–έως, διαθέσιμα, βαθμολογία ≥).
+- **Καλάθι** (drawer) με ποσότητες, σύνολο, εξαγωγή CSV — αποθηκεύεται τοπικά.
 
-> Αν το Chromium δεν κατέβει (antivirus/δίκτυο), χρησιμοποιείται αυτόματα ο
-> **Edge** των Windows.
-
-### Με Python (οποιοδήποτε OS)
-```bash
-pip install -r requirements.txt
-python -m playwright install chromium   # ή χρησιμοποιείται ο Edge/Chrome
-python desktop.py            # native παράθυρο
-python desktop.py --browser  # στον browser
+## Docker / web (προαιρετικά)
+```
+docker compose up --build   →   http://localhost:8765
 ```
 
-### Με Docker
-```bash
-docker compose up --build    # http://localhost:8765
-```
+## Αρχεία
+- `static/index.html` — όλο το UI (HTML/CSS/JS).
+- `core.py` — λογική πηγών.   `app.py` — Flask API.   `desktop.py` — παράθυρο/browser.
+- `requirements.txt`, `setup.ps1` + `ΕΓΚΑΤΑΣΤΑΣΗ.bat` — εγκατάσταση.
 
-## Χαρακτηριστικά
-- Κατηγορίες Τεχνολογία / Σούπερ Μάρκετ / Βιβλία.
-- Αναζήτηση + «Ακριβές όνομα» (ταιριάζει και ISBN), ιστορικό αναζητήσεων.
-- Κάρτες προϊόντων με φωτογραφία & animations· κλικ → πλαϊνή σελίδα με όλα τα
-  καταστήματα (ταξινόμηση, ιστορικό τιμής, σύσταση αγοράς, alert τιμής).
-- Φίλτρα (τιμή από–έως, διαθέσιμα, βαθμολογία), καλάθι με εξαγωγή CSV.
+## Standalone .exe (χωρίς Python στον τελικό υπολογιστή)
+Σε Windows PC που έχει ήδη τρέξει το `ΕΓΚΑΤΑΣΤΑΣΗ.bat`, τρέξε **μία φορά** το
+`build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
+Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
-## Δομή
-```
-app.py            Flask API
-core.py           λογική όλων των πηγών
-desktop.py        εκκίνηση ως παράθυρο (pywebview) ή browser
-static/index.html όλο το UI (HTML/CSS/JS, dark/neon)
-requirements.txt  εξαρτήσεις
-Dockerfile, docker-compose.yml
-ΕΓΚΑΤΑΣΤΑΣΗ.bat / setup.ps1 / Στον browser.bat   (εγκατάσταση Windows)
-legacy_tkinter/   παλιά έκδοση σε Tkinter (ένα αρχείο)
-```
+### Αλλαγές 0.18
+- **Δίγλωσσο UI (ΕΛ / EN)** — διακόπτης γλώσσας πάνω δεξιά· όλα τα κείμενα του
+  περιβάλλοντος αλλάζουν αμέσως (κατηγορίες, κουμπιά, φίλτρα, καλάθι, σύγκριση,
+  γράφημα, μηνύματα). Η επιλογή αποθηκεύεται τοπικά· αρχική γλώσσα από τον browser.
+  *(Τα ονόματα προϊόντων/καταστημάτων μένουν όπως έρχονται από τις πηγές.)*
 
-## Νομική σημείωση
-Για προσωπική χρήση. Επιβεβαίωσε πάντα τελική τιμή, μεταφορικά, διαθεσιμότητα και
-παράδοση στο ίδιο το κατάστημα πριν αγοράσεις. Δεν χρησιμοποιεί πληρωμένα κλειδιά.
+### Αλλαγές 0.16
+- **Παράλληλη αναζήτηση** — όλες οι πηγές τρέχουν μαζί (πολύ πιο γρήγορα).
+- **Σύγκριση side-by-side** 2–3 προϊόντων.
+- **Γράφημα ιστορικού τιμής** (sparkline) στην πλαϊνή σελίδα.
+- **Branding**: neon εικονίδιο (app.ico) + favicon, standalone `.exe` (build_exe.bat).
+- Ευρύ δίχτυ browsers (Edge/Chrome/Brave/Vivaldi/Opera/Chromium, Win/mac/Linux).
 
-## License
-MIT — δες [LICENSE](LICENSE).
+### Αλλαγές 0.15
+- Ολοκαίνουργιο dark/neon UI, native παράθυρο (pywebview) ή browser.
+- Edge fallback (δεν χρειάζεται το κατέβασμα Chromium).
+- Από Kiro: BestPrice session reset+retry, HTTP backoff (429/503), log rotation,
+  requirements.txt, ιστορικό αναζητήσεων, φίλτρα, price alerts.
