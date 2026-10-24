@@ -1209,11 +1209,67 @@ _JSONLD_ITEMLIST_JS = r"""
 """
 
 
+# Pharm24: οι κανονικές αναζητήσεις δίνουν ItemList JSON-LD, αλλά όροι που
+# ταιριάζουν ακριβώς σε brand/κατηγορία (π.χ. "avene") κάνουν redirect σε
+# σελίδα brand ΧΩΡΙΣ ItemList → fallback στο grid (.msr-price + img alt).
+_PHARM24_PARSE_JS = r"""
+() => {
+  const items = [], one = v => Array.isArray(v) ? v[0] : v;
+  const mapAvail = a => { a = (a||'')+''; if (/InStock/i.test(a)) return 'Διαθέσιμο';
+    if (/OutOfStock|SoldOut|Discontinued|BackOrder/i.test(a)) return 'Εξαντλημένο'; return ''; };
+  for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+    let j; try { j = JSON.parse(s.textContent); } catch (e) { continue; }
+    const arr = Array.isArray(j) ? j : [j];
+    for (const node of arr) {
+      if (!node || typeof node !== 'object') continue;
+      const graph = Array.isArray(node['@graph']) ? node['@graph'] : [node];
+      for (const n of graph) {
+        if (!n || typeof n !== 'object') continue;
+        const t = n['@type'];
+        const add = p => { if (!p || !p.name) return; const off = one(p.offers) || {};
+          items.push({ title:(p.name||'').toString().slice(0,160),
+            price: off.price!=null?off.price:(off.lowPrice!=null?off.lowPrice:null),
+            image: one(p.image)||'', url: p.url||'',
+            rating: p.aggregateRating?p.aggregateRating.ratingValue:null,
+            availability: mapAvail(off.availability), currency: off.priceCurrency||'EUR' }); };
+        if (t === 'ItemList' && Array.isArray(n.itemListElement)) {
+          for (const li of n.itemListElement) { const it=(li&&li.item)?li.item:li; if (it&&(it['@type']==='Product'||it.name)) add(it); }
+        } else if (t === 'Product' || (Array.isArray(t) && t.includes('Product'))) add(n);
+      }
+    }
+  }
+  if (items.length) return items;
+  // fallback: product grid on brand/category pages (no ItemList)
+  const num = s => { if (!s) return null; s = s.replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  const seen = new Set();
+  document.querySelectorAll('.msr-price').forEach(pe => {
+    const price = num(pe.textContent); if (price == null) return;
+    let card = pe, nameEl = null, link = null;
+    for (let i=0;i<6;i++){ card=card.parentElement; if(!card)break;
+      nameEl=card.querySelector('.product-name'); link=card.querySelector('a[href*="-p-"]'); if(nameEl&&link)break; }
+    if (!nameEl || !link) return;
+    let url; try { url = new URL(link.getAttribute('href'), location.origin).href; } catch (e) { return; }
+    if (seen.has(url)) return;
+    const img = card.querySelector('img');
+    const image = img ? (img.getAttribute('src')||img.getAttribute('data-src')||'') : '';
+    let name = (img && img.getAttribute('alt')) || (nameEl.textContent||'').replace(/\s*\.\.\.\s*i\s*/g,' ');
+    name = name.trim(); if (name.length < 3) return;
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image, url, rating:null, availability:'', currency:'EUR' });
+  });
+  return items;
+};
+"""
+
+
 def jsonld_itemlist_search(label, search_url, query, limit=25,
-                           wait_selector='script[type="application/ld+json"]'):
+                           wait_selector='script[type="application/ld+json"]',
+                           parse_js=None):
     """Γενικός scraper για eshop που εκθέτει JSON-LD ItemList/Product στη σελίδα
     αποτελεσμάτων. Τρέχει μέσω Playwright (δουλεύει και σε server-rendered και σε
-    sites που προσθέτουν το JSON-LD με JS)."""
+    sites που προσθέτουν το JSON-LD με JS). `parse_js` για site-specific parser."""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -1236,7 +1292,7 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
                     page.wait_for_timeout(600)
                 except Exception:
                     pass
-                raw = page.evaluate(_JSONLD_ITEMLIST_JS)
+                raw = page.evaluate(parse_js or _JSONLD_ITEMLIST_JS)
             finally:
                 try:
                     page.close()
@@ -1275,8 +1331,12 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
 
 
 def pharm24_search(query, limit=25):
-    """Απευθείας αναζήτηση στο online φαρμακείο Pharm24 (JSON-LD ItemList)."""
-    return jsonld_itemlist_search(PHARM24_LABEL, _PHARM24_SEARCH_URL, query, limit)
+    """Απευθείας αναζήτηση στο online φαρμακείο Pharm24. Κανονικές αναζητήσεις →
+    JSON-LD ItemList· brand/κατηγορία (redirect) → fallback στο product grid."""
+    return jsonld_itemlist_search(
+        PHARM24_LABEL, _PHARM24_SEARCH_URL, query, limit,
+        wait_selector='.msr-price, script[type="application/ld+json"]',
+        parse_js=_PHARM24_PARSE_JS)
 
 
 def search_shops(query, labels):
