@@ -496,7 +496,12 @@ async function doSearch(exact){
     if(exact) prods=prods.filter(p=>exactMatch(p.title||'',q)||exactMatch(p.product_url||'',q));
     allProducts=prods; compare=[]; updateCmp(); applyFilters();
     const sum=Object.entries(d.counts||{}).map(([k,v])=>`${k}: ${v}`).join(' · ');
-    const notes=(d.diagnostics||[]).filter(n=>n&&!/: 0 /.test(n)&&!/προϊόντα$/.test(n));
+    // Κράτα μόνο πραγματικά σφάλματα/προειδοποιήσεις — κρύψε τα success counts
+    // (τα δείχνει ήδη η σύνοψη), τα μηδενικά και τα «δεν βρέθηκαν».
+    const notes=(d.diagnostics||[]).filter(n=>n
+      &&!/:\s*\d+\s+(προϊόντα|αγγελίες|βιβλία)\s*$/.test(n)
+      &&!/:\s*0\s/.test(n)
+      &&!/δεν βρέθηκαν/.test(n));
     busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
     pushHistory(q); checkAlerts(prods);
   }catch(e){busy(false,t('error')+e)}
@@ -547,6 +552,29 @@ function renderProducts(){
   }).join('');
   $$('#grid .card').forEach(c=>c.onclick=()=>openProduct(+c.dataset.i));
   $$('#grid .cmp').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleCompare(products[+b.dataset.i])});
+  lazyImages();
+}
+
+/* ---------- lazy-load εικόνων που λείπουν (π.χ. BestPrice) ---------- */
+let _imgToken=0,_imgQueue=[],_imgActive=0;
+function lazyImages(){
+  _imgToken++; const tok=_imgToken; _imgQueue=[];
+  products.forEach((p,i)=>{ if(!p.image&&p.product_id) _imgQueue.push({p,i,tok}); });
+  pumpImages();
+}
+function pumpImages(){
+  while(_imgActive<4&&_imgQueue.length){
+    const job=_imgQueue.shift(); _imgActive++;
+    api('/api/bp_image?product_id='+encodeURIComponent(job.p.product_id)).then(d=>{
+      if(d&&d.image){ job.p.image=d.image;
+        if(job.tok===_imgToken&&products[job.i]===job.p){
+          const th=document.querySelector('#grid .card[data-i="'+job.i+'"] .thumb');
+          if(th){ th.style.backgroundImage="url('"+String(d.image).replace(/'/g,"%27")+"')";
+            const ph=th.querySelector('.ph'); if(ph)ph.remove(); }
+        }
+      }
+    }).catch(()=>{}).finally(()=>{_imgActive--;pumpImages();});
+  }
 }
 
 /* ---------- side-by-side compare ---------- */

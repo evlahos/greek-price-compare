@@ -40,6 +40,20 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.24 — Code review fixes + bugfixes
+- **eBay ξαναδουλεύει:** HTTP-first (το SRP είναι server-rendered & χωρίς cookies →
+  παρακάμπτει consent/headless) με Playwright fallback.
+- **BestPrice φωτο:** capture image από το MCP + lazy-load στο grid (`/api/bp_image`,
+  με cache) — δεν μπλοκάρει την αναζήτηση.
+- #1 Όριο ταυτόχρονων browsers (`GPC_MAX_PARALLEL`, default 4) — προστασία RAM/CPU.
+- #2 Thread-lock στο BestPrice (ασφαλές με ταυτόχρονα /api/offers κ.λπ.).
+- #3 `http_get` σέβεται το encoding και στο cloudscraper path (iso-8859-7).
+- #4 SSRF guard στο `/api/fetch_url` (μπλοκάρει loopback/private/internal).
+- #5 Σωστό browser cleanup (try/finally) σε όλες τις Playwright συναρτήσεις.
+- #6 Μητρώο `DIRECT_SOURCES` — προσθήκη πηγής = 1 γραμμή (αντί για 5 σημεία).
+- Polish: καθαρότερα diagnostics, μεγαλύτερο settle σε AJAX/SPA (Cosmos/Hondos),
+  αύξηση BestPrice limit (8→16).
+
 ### Αλλαγές 0.23 — Καλλυντικά (Υγεία & Ομορφιά)
 - **Sephora** — server-rendered JSON-LD ItemList (generic engine· url στο ListItem).
 - **Hondos Center** — SPA render + CSS grid (`[class*="ProductCard"]`, τιμή

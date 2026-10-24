@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.23"
+VERSION = "0.24"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -110,6 +110,8 @@ def http_get(url, timeout=25, extra_headers=None, encoding="utf-8", _retry=0):
     if _SCRAPER is not None:
         resp = _SCRAPER.get(url, headers=headers, timeout=timeout)
         resp.raise_for_status()
+        if encoding:  # σεβόμαστε το ρητό encoding (π.χ. e-shop.gr = iso-8859-7)
+            resp.encoding = encoding
         return resp.text
     req = urllib.request.Request(url, headers=headers)
     try:
@@ -219,6 +221,10 @@ class BestPriceSource:
         self._request_id = 10
         self._session_id = None
         self._initialized = False
+        # Το state (session/request id) είναι κοινό· τα /api/offers,/history,
+        # /decision μπορεί να τρέξουν ταυτόχρονα με την αναζήτηση (Flask threaded).
+        # RLock γιατί το _call κάνει αναδρομικό retry.
+        self._lock = threading.RLock()
 
     def _reset_session(self):
         """Reset της MCP σύνδεσης ώστε να ξαναγίνει initialize στην επόμενη κλήση."""
@@ -270,12 +276,16 @@ class BestPriceSource:
         self._initialized = True
 
     def _call(self, tool, arguments, _retry=True):
+        with self._lock:
+            return self._call_locked(tool, arguments, _retry)
+
+    def _call_locked(self, tool, arguments, _retry=True):
         try:
             self._ensure()
         except Exception:
             if _retry:
                 self._reset_session()
-                return self._call(tool, arguments, _retry=False)
+                return self._call_locked(tool, arguments, _retry=False)
             raise
         self._request_id += 1
         try:
@@ -285,7 +295,7 @@ class BestPriceSource:
         except Exception:
             if _retry and not self._initialized:  # session έληξε → ξαναπροσπάθησε μία φορά
                 self._reset_session()
-                return self._call(tool, arguments, _retry=False)
+                return self._call_locked(tool, arguments, _retry=False)
             raise
         if isinstance(result, dict) and result.get("error"):
             raise RuntimeError(result["error"].get("message", str(result["error"])))
@@ -311,8 +321,8 @@ class BestPriceSource:
                     return {"text": text}
         return out
 
-    def search(self, query, limit=8):
-        data = self._call("search_products", {"query": query, "limit": max(1, min(8, limit))})
+    def search(self, query, limit=16):
+        data = self._call("search_products", {"query": query, "limit": max(1, min(24, limit))})
         rows = records(data, ("products", "results", "items", "data"))
         out = []
         for p in rows:
@@ -320,13 +330,20 @@ class BestPriceSource:
             title = str(first(p, "title", "name", "product_name", "product_title", default="")).strip()
             if not pid or not title:
                 continue
+            img = first(p, "image", "image_url", "img", "thumbnail", "picture",
+                        "main_image", "image_big", default="")
+            if isinstance(img, dict):
+                img = img.get("url") or img.get("src") or ""
             out.append({
                 "source": self.name, "product_id": pid, "title": title,
                 "price_from": to_float(first(p, "price_from", "price", "min_price", "lowest_price", default=None)),
                 "offer_count": first(p, "offer_count", "offers_count", "shop_count", default=None),
                 "rating": to_float(first(p, "rating", default=None)),
+                "image": img or "",
                 "url": first(p, "product_url", "url", "bestprice_url", default=""),
             })
+        # Οι εικόνες που λείπουν φορτώνονται lazy από το frontend (/api/bp_image),
+        # ώστε η αναζήτηση να μένει γρήγορη (δεν μπλοκάρει σε N page fetches).
         return out
 
     def offers(self, product_id, postal_code=""):
@@ -447,9 +464,33 @@ def _meta(html, prop):
     return ""
 
 
+_PRIVATE_HOST_RE = re.compile(
+    r"^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.0\.0\.0|\[?::1\]?|"
+    r"172\.(1[6-9]|2\d|3[01])\.)", re.IGNORECASE)
+
+
+def _is_safe_fetch_url(url):
+    """SSRF guard: επιτρέπει μόνο http/https σε δημόσιο host (όχι loopback/
+    private/link-local/χωρίς τελεία), ώστε το /api/fetch_url να μην φτάνει
+    εσωτερικές υπηρεσίες."""
+    try:
+        p = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    if p.scheme not in ("http", "https"):
+        return False
+    host = (p.hostname or "").strip()
+    if not host or "." not in host:
+        return False
+    return not _PRIVATE_HOST_RE.match(host)
+
+
 def fetch_product_url(url):
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
+    if not _is_safe_fetch_url(url):
+        raise RuntimeError("Μη έγκυρος ή μη επιτρεπτός σύνδεσμος "
+                           "(επίτρεψε μόνο δημόσια eshop URLs).")
     try:
         html = http_get(url, timeout=25)
     except urllib.error.HTTPError as exc:
@@ -686,31 +727,33 @@ def playwright_search_all(labels, query):
                 if "Executable doesn't exist" in msg or "playwright install" in msg:
                     return [], ["Playwright: λείπει ο browser — τρέξε 'playwright install chromium'"]
                 return [], [f"Playwright: σφάλμα εκκίνησης — {msg[:100]}"]
-            ctx = browser.new_context(user_agent=_UA, locale="el-GR",
-                                      viewport={"width": 1366, "height": 900})
-            for label, tmpl in targets:
-                url = tmpl.format(q=q)
-                page = ctx.new_page()
-                try:
-                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            try:
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          viewport={"width": 1366, "height": 900})
+                for label, tmpl in targets:
+                    url = tmpl.format(q=q)
+                    page = ctx.new_page()
                     try:
-                        page.wait_for_function(wait_js, timeout=9000)
-                    except Exception:
-                        page.wait_for_timeout(2500)
-                    html = page.content()
-                    base = page.url
-                    r = parse_search_listing(html, base, label, limit=20)
-                    rows.extend(r)
-                    diags.append(f"{label}: {len(r)} προϊόντα" if r
-                                 else f"{label}: δεν βρέθηκαν προϊόντα (ίσως άλλαξε η σελίδα)")
-                except Exception as exc:
-                    diags.append(f"{label}: {str(exc)[:80]}")
-                finally:
-                    try:
-                        page.close()
-                    except Exception:
-                        pass
-            browser.close()
+                        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                        try:
+                            page.wait_for_function(wait_js, timeout=9000)
+                        except Exception:
+                            page.wait_for_timeout(2500)
+                        html = page.content()
+                        base = page.url
+                        r = parse_search_listing(html, base, label, limit=20)
+                        rows.extend(r)
+                        diags.append(f"{label}: {len(r)} προϊόντα" if r
+                                     else f"{label}: δεν βρέθηκαν προϊόντα (ίσως άλλαξε η σελίδα)")
+                    except Exception as exc:
+                        diags.append(f"{label}: {str(exc)[:80]}")
+                    finally:
+                        try:
+                            page.close()
+                        except Exception:
+                            pass
+            finally:
+                browser.close()
     except Exception as exc:
         diags.append(f"Playwright: {str(exc)[:120]}")
     return rows, diags
@@ -759,16 +802,18 @@ def skroutz_offers(product_url):
                 if "Executable doesn't exist" in msg or "playwright install" in msg:
                     return {"offers": [], "error": "Playwright: τρέξε 'playwright install chromium'"}
                 return {"offers": [], "error": f"Playwright: {msg[:100]}"}
-            ctx = browser.new_context(user_agent=_UA, locale="el-GR")
-            page = ctx.new_page()
             try:
-                page.goto(product_url, wait_until="domcontentloaded", timeout=30000)
-                raw = page.evaluate(_SKROUTZ_OFFERS_JS, sku)
-            finally:
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR")
+                page = ctx.new_page()
                 try:
-                    page.close()
-                except Exception:
-                    pass
+                    page.goto(product_url, wait_until="domcontentloaded", timeout=30000)
+                    raw = page.evaluate(_SKROUTZ_OFFERS_JS, sku)
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+            finally:
                 browser.close()
     except Exception as exc:
         return {"offers": [], "error": f"Skroutz: {str(exc)[:120]}"}
@@ -895,18 +940,20 @@ def _supermarket_api_playwright(query):
                 if "Executable doesn't exist" in msg or "playwright install" in msg:
                     return None, "Playwright: τρέξε 'playwright install chromium'"
                 return None, f"Playwright: {msg[:100]}"
-            ctx = browser.new_context(user_agent=_UA, locale="el-GR")
-            page = ctx.new_page()
             data = None
             try:
-                page.goto("https://posokanei.gov.gr/", wait_until="domcontentloaded",
-                          timeout=30000)
-                data = page.evaluate(_SM_API_JS, query)
-            finally:
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR")
+                page = ctx.new_page()
                 try:
-                    page.close()
-                except Exception:
-                    pass
+                    page.goto("https://posokanei.gov.gr/", wait_until="domcontentloaded",
+                              timeout=30000)
+                    data = page.evaluate(_SM_API_JS, query)
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+            finally:
                 browser.close()
     except Exception as exc:
         return None, f"Σούπερ Μάρκετ: {str(exc)[:120]}"
@@ -1027,22 +1074,24 @@ def politeia_search(query, limit=25):
                 if "Executable doesn't exist" in msg or "playwright install" in msg:
                     return [], "Πολιτεία: τρέξε 'playwright install chromium'"
                 return [], f"Πολιτεία: {msg[:100]}"
-            ctx = browser.new_context(user_agent=_UA, locale="el-GR",
-                                      viewport={"width": 1366, "height": 900})
-            page = ctx.new_page()
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          viewport={"width": 1366, "height": 900})
+                page = ctx.new_page()
                 try:
-                    page.wait_for_selector(".product-card", timeout=12000)
-                    page.wait_for_timeout(1200)
-                except Exception:
-                    pass
-                raw = page.evaluate(_POLITEIA_PARSE_JS)
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        page.wait_for_selector(".product-card", timeout=12000)
+                        page.wait_for_timeout(1200)
+                    except Exception:
+                        pass
+                    raw = page.evaluate(_POLITEIA_PARSE_JS)
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
             finally:
-                try:
-                    page.close()
-                except Exception:
-                    pass
                 browser.close()
     except Exception as exc:
         return [], f"{POLITEIA_LABEL}: {str(exc)[:120]}"
@@ -1100,41 +1149,36 @@ _EBAY_PARSE_JS = r"""
 """
 
 
-def ebay_search(query, limit=25):
-    """Αναζήτηση στο eBay.de (τιμές σε EUR) μέσω Playwright/Edge."""
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception:
-        return [], f"{EBAY_LABEL}: {PLAYWRIGHT_HINT}"
-    url = _EBAY_SEARCH_URL.format(q=urllib.parse.quote(query))
-    raw = None
-    try:
-        with sync_playwright() as pw:
-            try:
-                browser = launch_chromium(pw)
-            except Exception as exc:
-                return [], f"eBay: δεν ξεκίνησε browser — {str(exc)[:110]}"
-            ctx = browser.new_context(user_agent=_UA, locale="de-DE",
-                                      viewport={"width": 1366, "height": 900})
-            page = ctx.new_page()
-            try:
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                try:
-                    page.wait_for_selector("li.s-card, li.s-item", timeout=12000)
-                    page.wait_for_timeout(700)
-                except Exception:
-                    pass
-                raw = page.evaluate(_EBAY_PARSE_JS)
-            finally:
-                try:
-                    page.close()
-                except Exception:
-                    pass
-                browser.close()
-    except Exception as exc:
-        return [], f"{EBAY_LABEL}: {str(exc)[:120]}"
+def _parse_ebay(html, limit=25):
+    """Python parser του eBay.de SRP (server-rendered). Για κάθε /itm/ link,
+    διαβάζει τίτλο/τιμή/εικόνα από το περιβάλλον της κάρτας."""
+    items, seen = [], set()
+    for m in re.finditer(r'href="(https://www\.ebay\.de/itm/(\d+)[^"]*)"', html):
+        pid = m.group(2)
+        if pid == "123456" or pid in seen:
+            continue
+        url = m.group(1).split("?")[0]
+        win = html[m.start():m.start() + 3500]
+        tm = re.search(r's-card__title[^>]*>(?:\s*<[^>]+>)*\s*([^<]{4,180})', win)
+        if not tm:
+            continue
+        title = unescape(tm.group(1)).strip()
+        if not title or title.lower().startswith("shop on ebay"):
+            continue
+        pm = re.search(r's-card__price[^>]*>(?:\s*<[^>]+>)*\s*([^<]*?EUR[^<]*?)\s*<', win)
+        price = to_float(pm.group(1)) if pm else None
+        im = re.search(r'https://i\.ebayimg\.com/[^"\'\s>)]+', win)
+        seen.add(pid)
+        items.append({"title": title, "price": price,
+                      "image": im.group(0) if im else "", "url": url, "shipping": None})
+        if len(items) >= limit:
+            break
+    return items
+
+
+def _ebay_rows(items, limit):
     rows = []
-    for it in (raw or [])[:limit]:
+    for it in (items or [])[:limit]:
         if not isinstance(it, dict):
             continue
         price = to_float(it.get("price"))
@@ -1149,6 +1193,57 @@ def ebay_search(query, limit=25):
             "_direct": {"source": EBAY_LABEL, "merchant_name": EBAY_LABEL,
                         "price": price, "url": purl, "availability": avail,
                         "rating": None, "currency": "EUR"}})
+    return rows
+
+
+def ebay_search(query, limit=25):
+    """eBay.de (τιμές EUR). Το SRP είναι server-rendered & χωρίς cookies, οπότε
+    δοκιμάζουμε ΠΡΩΤΑ απλό HTTP (γρήγορο, παρακάμπτει consent/headless)· αν
+    αποτύχει/αδειάσει, πέφτουμε σε Playwright."""
+    url = _EBAY_SEARCH_URL.format(q=urllib.parse.quote(query))
+    # 1) HTTP πρώτα
+    try:
+        html = http_get(url, timeout=20,
+                        extra_headers={"Accept-Language": "de-DE,de;q=0.9,en;q=0.8"})
+        items = _parse_ebay(html, limit)
+        if items:
+            return _ebay_rows(items, limit), f"{EBAY_LABEL}: {len(items)} αγγελίες"
+    except Exception:
+        pass
+    # 2) Playwright fallback
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return [], f"{EBAY_LABEL}: {PLAYWRIGHT_HINT}"
+    raw = None
+    try:
+        with sync_playwright() as pw:
+            try:
+                browser = launch_chromium(pw)
+            except Exception as exc:
+                return [], f"eBay: δεν ξεκίνησε browser — {str(exc)[:110]}"
+            try:
+                ctx = browser.new_context(user_agent=_UA, locale="de-DE",
+                                          viewport={"width": 1366, "height": 900})
+                page = ctx.new_page()
+                try:
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        page.wait_for_selector("li.s-card, li.s-item", timeout=12000)
+                        page.wait_for_timeout(700)
+                    except Exception:
+                        pass
+                    raw = page.evaluate(_EBAY_PARSE_JS)
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+            finally:
+                browser.close()
+    except Exception as exc:
+        return [], f"{EBAY_LABEL}: {str(exc)[:120]}"
+    rows = _ebay_rows(raw, limit)
     return rows, (f"{EBAY_LABEL}: {len(rows)} αγγελίες" if rows
                   else f"{EBAY_LABEL}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)")
 
@@ -1267,10 +1362,11 @@ _PHARM24_PARSE_JS = r"""
 
 def jsonld_itemlist_search(label, search_url, query, limit=25,
                            wait_selector='script[type="application/ld+json"]',
-                           parse_js=None):
+                           parse_js=None, settle_ms=600):
     """Γενικός scraper για eshop που εκθέτει JSON-LD ItemList/Product στη σελίδα
     αποτελεσμάτων. Τρέχει μέσω Playwright (δουλεύει και σε server-rendered και σε
-    sites που προσθέτουν το JSON-LD με JS). `parse_js` για site-specific parser."""
+    sites που προσθέτουν το JSON-LD με JS). `parse_js` για site-specific parser,
+    `settle_ms` για extra αναμονή σε AJAX/SPA sites."""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -1283,22 +1379,24 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
                 browser = launch_chromium(pw)
             except Exception as exc:
                 return [], f"{label}: δεν ξεκίνησε browser — {str(exc)[:110]}"
-            ctx = browser.new_context(user_agent=_UA, locale="el-GR",
-                                      viewport={"width": 1366, "height": 900})
-            page = ctx.new_page()
             try:
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          viewport={"width": 1366, "height": 900})
+                page = ctx.new_page()
                 try:
-                    page.wait_for_selector(wait_selector, timeout=10000)
-                    page.wait_for_timeout(600)
-                except Exception:
-                    pass
-                raw = page.evaluate(parse_js or _JSONLD_ITEMLIST_JS)
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        page.wait_for_selector(wait_selector, timeout=10000)
+                        page.wait_for_timeout(settle_ms)
+                    except Exception:
+                        pass
+                    raw = page.evaluate(parse_js or _JSONLD_ITEMLIST_JS)
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
             finally:
-                try:
-                    page.close()
-                except Exception:
-                    pass
                 browser.close()
     except Exception as exc:
         return [], f"{label}: {str(exc)[:120]}"
@@ -1421,7 +1519,7 @@ def cosmossport_search(query, limit=25):
     """Απευθείας αναζήτηση στο cosmossport.gr (αθλητικά — AJAX render, CSS grid)."""
     return jsonld_itemlist_search(
         COSMOS_LABEL, _COSMOS_SEARCH_URL, query, limit,
-        wait_selector='.ajax_block_product', parse_js=_COSMOS_PARSE_JS)
+        wait_selector='.ajax_block_product', parse_js=_COSMOS_PARSE_JS, settle_ms=1500)
 
 
 # Leroy Merlin (σπίτι/DIY) — server-rendered grid .product-miniature.
@@ -1535,7 +1633,33 @@ def hondos_search(query, limit=25):
     """Απευθείας αναζήτηση στο hondoscenter.com (καλλυντικά — SPA render, CSS grid)."""
     return jsonld_itemlist_search(
         HONDOS_LABEL, _HONDOS_SEARCH_URL, query, limit,
-        wait_selector='[class*="ProductCard"]', parse_js=_HONDOS_PARSE_JS)
+        wait_selector='[class*="ProductCard"]', parse_js=_HONDOS_PARSE_JS, settle_ms=2000)
+
+
+# ── Μητρώο απευθείας πηγών: label → συνάρτηση (query) → (rows, diag). ──────────
+# Προσθήκη νέας πηγής = ΜΙΑ γραμμή εδώ (+ chip στο UI). Το `known` και τα jobs
+# παράγονται αυτόματα από αυτό — δεν χρειάζεται αλλαγή σε search_all/search_shops.
+DIRECT_SOURCES = {
+    "e-shop.gr": eshop_search,
+    SUPERMARKET_LABEL: supermarket_search,
+    POLITEIA_LABEL: politeia_search,
+    EBAY_LABEL: ebay_search,
+    PHARM24_LABEL: pharm24_search,
+    EPAPOUTSIA_LABEL: epapoutsia_search,
+    PHARMACY295_LABEL: pharmacy295_search,
+    COSMOS_LABEL: cosmossport_search,
+    LEROY_LABEL: leroymerlin_search,
+    MOUSTAKAS_LABEL: moustakas_search,
+    SEPHORA_LABEL: sephora_search,
+    HONDOS_LABEL: hondos_search,
+}
+
+# Μέγιστες ταυτόχρονες πηγές (κάθε Playwright πηγή = δικός της browser· περιορίζουμε
+# για να μην ανοίγουν 5-6 headless browsers μαζί). Ρυθμίζεται με GPC_MAX_PARALLEL.
+try:
+    _MAX_PARALLEL = max(1, int(os.environ.get("GPC_MAX_PARALLEL", "4")))
+except ValueError:
+    _MAX_PARALLEL = 4
 
 
 def search_shops(query, labels):
@@ -1543,11 +1667,6 @@ def search_shops(query, labels):
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
     results, diags = [], []
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
-    http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
-                   PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-                   COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL, SEPHORA_LABEL,
-                   HONDOS_LABEL}
-    others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
             diags.extend(f"{l}: {PLAYWRIGHT_HINT}" for l in pw)
@@ -1555,59 +1674,23 @@ def search_shops(query, labels):
             r, d = playwright_search_all(pw, query)
             results.extend(r)
             diags.extend(d)
-    if "e-shop.gr" in labels:
-        r, diag = eshop_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if SUPERMARKET_LABEL in labels:
-        r, diag = supermarket_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if POLITEIA_LABEL in labels:
-        r, diag = politeia_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if EBAY_LABEL in labels:
-        r, diag = ebay_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if PHARM24_LABEL in labels:
-        r, diag = pharm24_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if EPAPOUTSIA_LABEL in labels:
-        r, diag = epapoutsia_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if PHARMACY295_LABEL in labels:
-        r, diag = pharmacy295_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if COSMOS_LABEL in labels:
-        r, diag = cosmossport_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if LEROY_LABEL in labels:
-        r, diag = leroymerlin_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if MOUSTAKAS_LABEL in labels:
-        r, diag = moustakas_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if SEPHORA_LABEL in labels:
-        r, diag = sephora_search(query)
-        results.extend(r)
-        diags.append(diag)
-    if HONDOS_LABEL in labels:
-        r, diag = hondos_search(query)
-        results.extend(r)
-        diags.append(diag)
-    for l in others:
-        if l in UNSUPPORTED_SHOPS:
-            diags.append(f"{l}: ειδικό frontend — δεν υποστηρίζεται ακόμη")
-        else:
-            diags.append(f"{l}: μη υποστηριζόμενο")
+    if "BestPrice" in labels:
+        try:
+            results.extend(BESTPRICE.search(query))
+        except Exception as exc:
+            diags.append(f"BestPrice: {exc}")
+    for label, fn in DIRECT_SOURCES.items():
+        if label in labels:
+            try:
+                r, diag = fn(query)
+            except Exception as exc:
+                r, diag = [], f"{label}: {exc}"
+            results.extend(r)
+            diags.append(diag)
+    known = {"BestPrice"} | set(PLAYWRIGHT_SEARCH) | set(DIRECT_SOURCES)
+    for l in labels:
+        if l not in known:
+            diags.append(f"{l}: {'ειδικό frontend — δεν υποστηρίζεται ακόμη' if l in UNSUPPORTED_SHOPS else 'μη υποστηριζόμενο'}")
     return results, diags
 
 
@@ -1636,43 +1719,18 @@ def search_all(query, labels):
             return rows, (" | ".join(d) if d else None)
         jobs.append(("Playwright", _pw))
 
-    if "e-shop.gr" in labels:
-        jobs.append(("e-shop.gr", lambda: eshop_search(query)))
-    if SUPERMARKET_LABEL in labels:
-        jobs.append((SUPERMARKET_LABEL, lambda: supermarket_search(query)))
-    if POLITEIA_LABEL in labels:
-        jobs.append((POLITEIA_LABEL, lambda: politeia_search(query)))
-    if EBAY_LABEL in labels:
-        jobs.append((EBAY_LABEL, lambda: ebay_search(query)))
-    if PHARM24_LABEL in labels:
-        jobs.append((PHARM24_LABEL, lambda: pharm24_search(query)))
-    if EPAPOUTSIA_LABEL in labels:
-        jobs.append((EPAPOUTSIA_LABEL, lambda: epapoutsia_search(query)))
-    if PHARMACY295_LABEL in labels:
-        jobs.append((PHARMACY295_LABEL, lambda: pharmacy295_search(query)))
-    if COSMOS_LABEL in labels:
-        jobs.append((COSMOS_LABEL, lambda: cosmossport_search(query)))
-    if LEROY_LABEL in labels:
-        jobs.append((LEROY_LABEL, lambda: leroymerlin_search(query)))
-    if MOUSTAKAS_LABEL in labels:
-        jobs.append((MOUSTAKAS_LABEL, lambda: moustakas_search(query)))
-    if SEPHORA_LABEL in labels:
-        jobs.append((SEPHORA_LABEL, lambda: sephora_search(query)))
-    if HONDOS_LABEL in labels:
-        jobs.append((HONDOS_LABEL, lambda: hondos_search(query)))
+    for label, fn in DIRECT_SOURCES.items():
+        if label in labels:
+            jobs.append((label, (lambda f=fn: f(query))))
 
-    known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
-              EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-              COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL, SEPHORA_LABEL,
-              HONDOS_LABEL}
-             | set(PLAYWRIGHT_SEARCH))
+    known = {"BestPrice"} | set(PLAYWRIGHT_SEARCH) | set(DIRECT_SOURCES)
     rows_all, diags = [], []
     for l in labels:
         if l not in known:
             diags.append(f"{l}: {'ειδικό frontend — δεν υποστηρίζεται ακόμη' if l in UNSUPPORTED_SHOPS else 'μη υποστηριζόμενο'}")
 
     if jobs:
-        with ThreadPoolExecutor(max_workers=len(jobs)) as ex:
+        with ThreadPoolExecutor(max_workers=min(len(jobs), _MAX_PARALLEL)) as ex:
             futs = [(k, ex.submit(fn)) for k, fn in jobs]
             for k, f in futs:
                 try:
@@ -1829,13 +1887,23 @@ def format_decision(data):
 
 
 
+_BP_IMG_CACHE = {}
+
+
 def bestprice_image(product_id):
-    """og:image από τη σελίδα προϊόντος BestPrice (από το product_id)."""
+    """og:image από τη σελίδα προϊόντος BestPrice (από το product_id), με cache."""
     m = re.search(r"\d+", str(product_id or ""))
     if not m:
         return ""
+    key = m.group(0)
+    if key in _BP_IMG_CACHE:
+        return _BP_IMG_CACHE[key]
     try:
-        html = http_get(f"https://www.bestprice.gr/item/{m.group(0)}/x.html", timeout=15)
-        return _meta(html, "og:image")
+        html = http_get(f"https://www.bestprice.gr/item/{key}/x.html", timeout=15)
+        img = _meta(html, "og:image") or ""
     except Exception:
-        return ""
+        img = ""
+    if len(_BP_IMG_CACHE) > 500:
+        _BP_IMG_CACHE.clear()
+    _BP_IMG_CACHE[key] = img
+    return img
