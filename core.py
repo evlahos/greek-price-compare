@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.21"
+VERSION = "0.22"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1459,6 +1459,40 @@ def leroymerlin_search(query, limit=25):
         wait_selector='.product-miniature', parse_js=_LEROY_PARSE_JS)
 
 
+# Moustakas Toys (παιχνίδια/παιδικά) — server-rendered grid .product.
+MOUSTAKAS_LABEL = "Moustakas"
+_MOUSTAKAS_SEARCH_URL = "https://www.moustakastoys.gr/apotelesmata-anazitisis/?q={q}"
+_MOUSTAKAS_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('.product')) {
+    const a = c.querySelector('a[href]'); if (!a) continue;
+    let url; try { url = new URL(a.getAttribute('href'), location.origin).href; } catch (e) { continue; }
+    if (seen.has(url)) continue;
+    const img = c.querySelector('img');
+    const pe = c.querySelector('.price, [class*="price"]');
+    const price = pe ? num(pe.textContent) : null;
+    let name = (a.getAttribute('title') || (img && img.getAttribute('alt')) || a.textContent || '').trim().replace(/\s+/g,' ');
+    if (name.length < 3) continue;
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image: img?(img.getAttribute('src')||img.getAttribute('data-src')||''):'',
+                 url, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def moustakas_search(query, limit=25):
+    """Απευθείας αναζήτηση στο moustakastoys.gr (παιχνίδια — SSR grid)."""
+    return jsonld_itemlist_search(
+        MOUSTAKAS_LABEL, _MOUSTAKAS_SEARCH_URL, query, limit,
+        wait_selector='.product', parse_js=_MOUSTAKAS_PARSE_JS)
+
+
 def search_shops(query, labels):
     """Επιστρέφει (rows, diagnostics). Skroutz/Public/Πολιτεία/eBay → Playwright·
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
@@ -1466,7 +1500,7 @@ def search_shops(query, labels):
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
     http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
                    PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-                   COSMOS_LABEL, LEROY_LABEL}
+                   COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL}
     others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
@@ -1509,6 +1543,10 @@ def search_shops(query, labels):
         diags.append(diag)
     if LEROY_LABEL in labels:
         r, diag = leroymerlin_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if MOUSTAKAS_LABEL in labels:
+        r, diag = moustakas_search(query)
         results.extend(r)
         diags.append(diag)
     for l in others:
@@ -1562,10 +1600,12 @@ def search_all(query, labels):
         jobs.append((COSMOS_LABEL, lambda: cosmossport_search(query)))
     if LEROY_LABEL in labels:
         jobs.append((LEROY_LABEL, lambda: leroymerlin_search(query)))
+    if MOUSTAKAS_LABEL in labels:
+        jobs.append((MOUSTAKAS_LABEL, lambda: moustakas_search(query)))
 
     known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
               EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-              COSMOS_LABEL, LEROY_LABEL}
+              COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL}
              | set(PLAYWRIGHT_SEARCH))
     rows_all, diags = [], []
     for l in labels:

@@ -40,6 +40,12 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.22
+- **Νέα κατηγορία «Παιχνίδια» 🧸** με **Moustakas** (απευθείας, SSR grid — δοκιμή
+  live: 48 προϊόντα με τιμή+εικόνα) + BestPrice/Skroutz.
+- Ελεγμένα & ΟΧΙ: Zakcret (JS search), Protoporia (custom), Praktiker (JS),
+  **Multirama → redirect στο Public** (όπως MediaMarkt).
+
 ### Αλλαγές 0.21 — Περισσότερες απευθείας πηγές (live-checked)
 - **Pharmacy295** (Υγεία & Ομορφιά) — JSON-LD ItemList, χωρίς brand redirect.
 - **Cosmos Sport** (Αθλητικά) — PrestaShop grid (AJAX render).

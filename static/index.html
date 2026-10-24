@@ -246,6 +246,7 @@ a{color:var(--cy);text-decoration:none}
       <button data-m="fashion" data-i18n="cat_fashion"></button>
       <button data-m="home" data-i18n="cat_home"></button>
       <button data-m="sports" data-i18n="cat_sports"></button>
+      <button data-m="toys" data-i18n="cat_toys"></button>
       <button data-m="all" data-i18n="cat_all"></button>
     </div>
     <div class="langsw" id="langsw">
@@ -350,9 +351,9 @@ const T={
     appName:'ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b>',
     cat_tech:'🖥 Τεχνολογία',cat_super:'🛒 Σούπερ Μάρκετ',cat_books:'📚 Βιβλία',
     cat_health:'💊 Υγεία & Ομορφιά',cat_fashion:'👕 Μόδα',cat_home:'🏠 Σπίτι',
-    cat_sports:'🏀 Αθλητικά',cat_all:'✨ Γενική',
+    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_all:'✨ Γενική',
     sect_tech:'Προϊόντα',sect_super:'Σούπερ Μάρκετ',sect_books:'Βιβλία',sect_health:'Υγεία & Ομορφιά',
-    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_all:'Γενική αναζήτηση',
+    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_all:'Γενική αναζήτηση',
     q_ph:'Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB',clear_t:'Καθάρισμα',postal_ph:'Τ.Κ.',
     go:'Αναζήτηση',gox:'Ακριβές όνομα',gox_t:'Μόνο προϊόντα που περιέχουν ακριβώς αυτό',
     sources_lbl:'Πηγές',url_ph:'…ή επικόλλησε σύνδεσμο προϊόντος από eshop',fetch:'Άντληση',
@@ -383,9 +384,9 @@ const T={
     appName:'PRICE <b>COMPARE</b>',
     cat_tech:'🖥 Technology',cat_super:'🛒 Supermarket',cat_books:'📚 Books',
     cat_health:'💊 Health & Beauty',cat_fashion:'👕 Fashion',cat_home:'🏠 Home',
-    cat_sports:'🏀 Sports',cat_all:'✨ General',
+    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_all:'✨ General',
     sect_tech:'Products',sect_super:'Supermarket',sect_books:'Books',sect_health:'Health & Beauty',
-    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_all:'General search',
+    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_all:'General search',
     q_ph:'What are you looking for? e.g. Samsung 990 PRO 1TB',clear_t:'Clear',postal_ph:'Postal',
     go:'Search',gox:'Exact name',gox_t:'Only products that contain exactly this',
     sources_lbl:'Sources',url_ph:'…or paste a product link from an eshop',fetch:'Fetch',
@@ -454,6 +455,7 @@ const SOURCES={
   fashion:[['BestPrice','src_bp_f'],['Skroutz','src_sk_f'],['ePapoutsia','src_ep_f']],
   home:[['BestPrice','src_bp_ho'],['Skroutz','src_sk_ho'],['Leroy Merlin','src_lm_ho']],
   sports:[['BestPrice','src_bp_sp'],['Skroutz','src_sk_sp'],['Cosmos Sport','src_cs_sp']],
+  toys:[['BestPrice','src_bp_t'],['Skroutz','src_sk_t'],['Moustakas','src_mo_t']],
   all:[['BestPrice','src_bp_a'],['Skroutz','src_sk_a'],['Public','src_pu_a']]
 };
 let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compare=[];
@@ -485,7 +487,7 @@ async function doSearch(exact){
   const q=$('#q').value.trim(); if(!q)return;
   const sources=SOURCES[mode].filter(([l,id])=>srcState[id]).map(([l])=>l);
   if(!sources.length){toast(t('pick_source'),'⚠️');return}
-  const slow=sources.some(s=>['Skroutz','Public','Πολιτεία','Pharm24','eBay','ePapoutsia','Pharmacy295','Cosmos Sport','Leroy Merlin'].includes(s));
+  const slow=sources.some(s=>['Skroutz','Public','Πολιτεία','Pharm24','eBay','ePapoutsia','Pharmacy295','Cosmos Sport','Leroy Merlin','Moustakas'].includes(s));
   busy(true,t('searching')+(slow?t('via_browser'):''));
   skeletons();
   try{
