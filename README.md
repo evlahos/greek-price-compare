@@ -40,6 +40,15 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.19 — Φάση 2 (απευθείας πηγές)
+- **Pharm24** (απευθείας online φαρμακείο) στην κατηγορία «Υγεία & Ομορφιά» —
+  μέσω γενικού **JSON-LD ItemList engine** (`jsonld_itemlist_search`), που διαβάζει
+  schema.org Product από τη σελίδα αποτελεσμάτων (χωρίς εύθραυστα CSS selectors).
+  Προσθήκη νέου eshop = απλώς label + URL αναζήτησης.
+- Electronics: οι μεγάλοι retailers άλλαξαν πλατφόρμα — **MediaMarkt.gr → ανακατευθύνει
+  στο Public.gr** (ήδη ενσωματωμένο), **Κωτσόβολος/Πλαίσιο** = API-driven SPAs (εύθραυστα).
+  Τα electronics καλύπτονται ήδη απευθείας από **Public + e-shop.gr** + aggregators.
+
 ### Αλλαγές 0.18
 - **Δίγλωσσο UI (ΕΛ / EN)** — διακόπτης γλώσσας πάνω δεξιά· όλα τα κείμενα του
   περιβάλλοντος αλλάζουν αμέσως (κατηγορίες, κουμπιά, φίλτρα, καλάθι, σύγκριση,

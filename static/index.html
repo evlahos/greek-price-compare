@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Σύγκριση Τιμών</title>
+<title>Σύγκριση Τιμών · Price Compare</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><rect x='8' y='8' width='240' height='240' rx='52' fill='%230b1222'/><path d='M150 30 70 140 120 140 104 226 190 110 136 110Z' fill='%2322d3ee'/></svg>">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -170,7 +170,7 @@ body{
 .offer .add{border:0;width:38px;height:38px;border-radius:11px;background:var(--grad);color:#06101f;font-size:20px;cursor:pointer;flex:none;transition:.2s}
 .offer .add:hover{filter:brightness(1.1);transform:scale(1.06)}
 .best{position:relative}
-.best::after{content:"ΚΑΛΥΤΕΡΗ";position:absolute;top:-8px;right:12px;font:700 9px Inter;letter-spacing:.1em;
+.best::after{content:attr(data-best);position:absolute;top:-8px;right:12px;font:700 9px Inter;letter-spacing:.1em;
   background:var(--gr);color:#06101f;padding:3px 7px;border-radius:999px}
 
 /* cart drawer */
@@ -361,7 +361,7 @@ const T={
     sort_price:'Τιμή ↑',sort_total:'Συνολικό κόστος ↑',sort_rating:'Αξιολόγηση ↓',sort_shop:'Κατάστημα Α–Ω',
     sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',
     cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
-    cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',
+    cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
     exact_note:'  · ακριβές όνομα',error:'Σφάλμα: ',
     no_products:'Δεν βρέθηκαν προϊόντα.',try_other:'Δοκίμασε άλλη διατύπωση ή πηγή.',
@@ -394,7 +394,7 @@ const T={
     sort_price:'Price ↑',sort_total:'Total cost ↑',sort_rating:'Rating ↓',sort_shop:'Store A–Z',
     sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',
     cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
-    cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',
+    cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
     exact_note:'  · exact name',error:'Error: ',
     no_products:'No products found.',try_other:'Try different wording or another source.',
@@ -432,12 +432,17 @@ function setLang(l){
   if(l!=='en'&&l!=='el')l='el';
   LANG=l; save('gpc_lang',l);
   document.documentElement.lang=l;
+  document.title=(l==='en'?'Price Compare':'Σύγκριση Τιμών')+' · '+(l==='en'?'Σύγκριση Τιμών':'Price Compare');
   $$('#langsw button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
   applyStatic();
   $('#sectlbl').textContent=t('sect_'+mode);
   if(!$('#bar').classList.contains('on'))$('#statusTxt').textContent=t('status_ready');
   renderChips();
   if(allProducts.length)renderProducts();
+  if($('#sheet').classList.contains('on')){
+    if(curProduct)$('#shSub').textContent=(curProduct.source||'')+(curProduct.offer_count?` · ${curProduct.offer_count} ${t('stores_word')}`:'');
+    if(offers.length)renderOffers();
+  }
   if($('#cart').classList.contains('on'))renderCart(); else cartCount();
 }
 
@@ -445,7 +450,7 @@ const SOURCES={
   tech:[['BestPrice','src_bp'],['Skroutz','src_sk'],['Public','src_pu'],['e-shop.gr','src_es'],['eBay','src_eb']],
   super:[['Σούπερ Μάρκετ','src_sm']],
   books:[['BestPrice','src_bpb'],['Skroutz','src_skb'],['Public','src_pub'],['Πολιτεία','src_pol']],
-  health:[['BestPrice','src_bp_h'],['Skroutz','src_sk_h']],
+  health:[['BestPrice','src_bp_h'],['Skroutz','src_sk_h'],['Pharm24','src_ph_h']],
   fashion:[['BestPrice','src_bp_f'],['Skroutz','src_sk_f']],
   home:[['BestPrice','src_bp_ho'],['Skroutz','src_sk_ho']],
   sports:[['BestPrice','src_bp_sp'],['Skroutz','src_sk_sp']],
@@ -480,7 +485,7 @@ async function doSearch(exact){
   const q=$('#q').value.trim(); if(!q)return;
   const sources=SOURCES[mode].filter(([l,id])=>srcState[id]).map(([l])=>l);
   if(!sources.length){toast(t('pick_source'),'⚠️');return}
-  const slow=sources.some(s=>['Skroutz','Public','Πολιτεία'].includes(s));
+  const slow=sources.some(s=>['Skroutz','Public','Πολιτεία','Pharm24','eBay'].includes(s));
   busy(true,t('searching')+(slow?t('via_browser'):''));
   skeletons();
   try{
@@ -613,7 +618,7 @@ function renderOffers(){
     const extra=[x.availability,x.delivery_estimate,rat].filter(Boolean).join(' · ');
     const name=x.offer_url?`<a href="${esc(x.offer_url)}" target="_blank" rel="noopener">${esc(x.merchant_name||'—')}</a>`:esc(x.merchant_name||'—');
     const tot=(typeof x.total_price==='number')?`<small>${esc(t('total_short'))}${euro(x.total_price)}</small>`:'';
-    return `<div class="offer${i===0?' best':''}" style="animation-delay:${i*35}ms">
+    return `<div class="offer${i===0?' best':''}"${i===0?` data-best="${esc(t('best'))}"`:''} style="animation-delay:${i*35}ms">
       <div class="shop">${name}<small>${esc(extra)||'&nbsp;'}</small></div>
       <div class="op">${euro(x.item_price)}${tot}</div>
       <button class="add" data-i="${i}" title="${esc(t('to_cart_t'))}">＋</button></div>`;
@@ -662,7 +667,7 @@ $('#cartCsv').onclick=()=>{if(!cart.length)return;let tot=0;const rows=[t('csv_h
     rows.push([c.title,c.shop,c.qty,isFinite(p)?p.toFixed(2):'',l===''?'':l.toFixed(2),c.url||''])});
   rows.push(['','','','',t('total'),tot.toFixed(2)]);
   const csv=rows.map(r=>r.map(x=>`"${String(x).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download='kalathi.csv';a.click()};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download=t('csv_file');a.click()};
 
 /* ---------- url fetch ---------- */
 $('#fetch').onclick=async()=>{const u=$('#url').value.trim();if(!u)return;busy(true,t('fetch_busy'));

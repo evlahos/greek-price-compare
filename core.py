@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.18"
+VERSION = "0.19"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1153,12 +1153,139 @@ def ebay_search(query, limit=25):
                   else f"{EBAY_LABEL}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)")
 
 
+# ----------------------------------------------------------------------------
+# Φάση 2 — απευθείας eshops μέσω JSON-LD ItemList (γενικός, εύκολα επεκτάσιμος).
+# Αρκεί label + URL αναζήτησης· ό,τι eshop εκθέτει schema.org ItemList/Product
+# στη σελίδα αποτελεσμάτων δουλεύει χωρίς CSS selectors (πιο ανθεκτικό).
+# ----------------------------------------------------------------------------
+PHARM24_LABEL = "Pharm24"
+_PHARM24_SEARCH_URL = ("https://www.pharm24.gr/index.php?main_page="
+                       "advanced_search_result&search_in_description=1&keyword={q}")
+
+_JSONLD_ITEMLIST_JS = r"""
+() => {
+  const items = [];
+  const one = v => Array.isArray(v) ? v[0] : v;
+  const push = p => {
+    if (!p || !p.name) return;
+    const off = one(p.offers) || {};
+    let avail = (off.availability || '') + '';
+    if (/InStock/i.test(avail)) avail = 'Διαθέσιμο';
+    else if (/OutOfStock|SoldOut|Discontinued|BackOrder/i.test(avail)) avail = 'Εξαντλημένο';
+    else avail = '';
+    const rat = p.aggregateRating ? p.aggregateRating.ratingValue : null;
+    items.push({
+      title: (p.name || '').toString().slice(0, 160),
+      price: off.price != null ? off.price : (off.lowPrice != null ? off.lowPrice : null),
+      image: one(p.image) || '',
+      url: p.url || '',
+      rating: rat,
+      availability: avail,
+      currency: off.priceCurrency || 'EUR'
+    });
+  };
+  for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+    let j; try { j = JSON.parse(s.textContent); } catch (e) { continue; }
+    const arr = Array.isArray(j) ? j : [j];
+    for (const node of arr) {
+      if (!node || typeof node !== 'object') continue;
+      const graph = Array.isArray(node['@graph']) ? node['@graph'] : [node];
+      for (const n of graph) {
+        if (!n || typeof n !== 'object') continue;
+        const t = n['@type'];
+        if (t === 'ItemList' && Array.isArray(n.itemListElement)) {
+          for (const li of n.itemListElement) {
+            const it = (li && li.item) ? li.item : li;
+            if (it && (it['@type'] === 'Product' || it.name)) push(it);
+          }
+        } else if (t === 'Product' || (Array.isArray(t) && t.includes('Product'))) {
+          push(n);
+        }
+      }
+    }
+  }
+  return items;
+};
+"""
+
+
+def jsonld_itemlist_search(label, search_url, query, limit=25,
+                           wait_selector='script[type="application/ld+json"]'):
+    """Γενικός scraper για eshop που εκθέτει JSON-LD ItemList/Product στη σελίδα
+    αποτελεσμάτων. Τρέχει μέσω Playwright (δουλεύει και σε server-rendered και σε
+    sites που προσθέτουν το JSON-LD με JS)."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return [], f"{label}: {PLAYWRIGHT_HINT}"
+    url = search_url.format(q=urllib.parse.quote(query))
+    raw = None
+    try:
+        with sync_playwright() as pw:
+            try:
+                browser = launch_chromium(pw)
+            except Exception as exc:
+                return [], f"{label}: δεν ξεκίνησε browser — {str(exc)[:110]}"
+            ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                      viewport={"width": 1366, "height": 900})
+            page = ctx.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                try:
+                    page.wait_for_selector(wait_selector, timeout=10000)
+                    page.wait_for_timeout(600)
+                except Exception:
+                    pass
+                raw = page.evaluate(_JSONLD_ITEMLIST_JS)
+            finally:
+                try:
+                    page.close()
+                except Exception:
+                    pass
+                browser.close()
+    except Exception as exc:
+        return [], f"{label}: {str(exc)[:120]}"
+    rows, seen = [], set()
+    for it in (raw or []):
+        if not isinstance(it, dict):
+            continue
+        title = (it.get("title") or "").strip()
+        purl = it.get("url") or ""
+        key = purl or title
+        if not title or key in seen:
+            continue
+        seen.add(key)
+        price = to_float(it.get("price"))
+        rating = to_float(it.get("rating"))
+        avail = it.get("availability") or ""
+        rows.append({
+            "source": label, "product_id": "",
+            "title": title, "image": it.get("image") or "",
+            "price_from": price, "offer_count": 1,
+            "rating": rating if rating else None,
+            "product_url": purl,
+            "_direct": {"source": label, "merchant_name": label,
+                        "price": price, "url": purl, "availability": avail,
+                        "rating": rating if rating else None,
+                        "currency": it.get("currency") or "EUR"}})
+        if len(rows) >= limit:
+            break
+    return rows, (f"{label}: {len(rows)} προϊόντα" if rows
+                  else f"{label}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)")
+
+
+def pharm24_search(query, limit=25):
+    """Απευθείας αναζήτηση στο online φαρμακείο Pharm24 (JSON-LD ItemList)."""
+    return jsonld_itemlist_search(PHARM24_LABEL, _PHARM24_SEARCH_URL, query, limit)
+
+
 def search_shops(query, labels):
     """Επιστρέφει (rows, diagnostics). Skroutz/Public/Πολιτεία/eBay → Playwright·
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
     results, diags = [], []
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
-    http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL}
+    http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
+                   PHARM24_LABEL}
     others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
@@ -1181,6 +1308,10 @@ def search_shops(query, labels):
         diags.append(diag)
     if EBAY_LABEL in labels:
         r, diag = ebay_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if PHARM24_LABEL in labels:
+        r, diag = pharm24_search(query)
         results.extend(r)
         diags.append(diag)
     for l in others:
@@ -1224,8 +1355,11 @@ def search_all(query, labels):
         jobs.append((POLITEIA_LABEL, lambda: politeia_search(query)))
     if EBAY_LABEL in labels:
         jobs.append((EBAY_LABEL, lambda: ebay_search(query)))
+    if PHARM24_LABEL in labels:
+        jobs.append((PHARM24_LABEL, lambda: pharm24_search(query)))
 
-    known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL}
+    known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
+              EBAY_LABEL, PHARM24_LABEL}
              | set(PLAYWRIGHT_SEARCH))
     rows_all, diags = [], []
     for l in labels:
