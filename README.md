@@ -40,6 +40,12 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.23 — Καλλυντικά (Υγεία & Ομορφιά)
+- **Sephora** — server-rendered JSON-LD ItemList (generic engine· url στο ListItem).
+- **Hondos Center** — SPA render + CSS grid (`[class*="ProductCard"]`, τιμή
+  `.ProductPrice-PriceValue`). Δοκιμή live: ~40 προϊόντα/αναζήτηση.
+- (Beautyworld = parked domain· παραλείφθηκε.)
+
 ### Αλλαγές 0.22
 - **Νέα κατηγορία «Παιχνίδια» 🧸** με **Moustakas** (απευθείας, SSR grid — δοκιμή
   live: 48 προϊόντα με τιμή+εικόνα) + BestPrice/Skroutz.

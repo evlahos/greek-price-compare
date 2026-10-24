@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.22"
+VERSION = "0.23"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1233,7 +1233,8 @@ _PHARM24_PARSE_JS = r"""
             rating: p.aggregateRating?p.aggregateRating.ratingValue:null,
             availability: mapAvail(off.availability), currency: off.priceCurrency||'EUR' }); };
         if (t === 'ItemList' && Array.isArray(n.itemListElement)) {
-          for (const li of n.itemListElement) { const it=(li&&li.item)?li.item:li; if (it&&(it['@type']==='Product'||it.name)) add(it); }
+          for (const li of n.itemListElement) { const it=(li&&li.item)?li.item:li;
+            if (it&&(it['@type']==='Product'||it.name)) { if (!it.url && li && li.url) it.url=li.url; add(it); } }
         } else if (t === 'Product' || (Array.isArray(t) && t.includes('Product'))) add(n);
       }
     }
@@ -1493,6 +1494,50 @@ def moustakas_search(query, limit=25):
         wait_selector='.product', parse_js=_MOUSTAKAS_PARSE_JS)
 
 
+# Sephora (καλλυντικά/αρώματα) — server-rendered JSON-LD ItemList (url στο ListItem).
+SEPHORA_LABEL = "Sephora"
+_SEPHORA_SEARCH_URL = "https://www.sephora.gr/anazhthsh?q={q}"
+
+
+def sephora_search(query, limit=25):
+    """Απευθείας αναζήτηση στο sephora.gr (καλλυντικά — JSON-LD ItemList)."""
+    return jsonld_itemlist_search(SEPHORA_LABEL, _SEPHORA_SEARCH_URL, query, limit)
+
+
+# Hondos Center (καλλυντικά/αρώματα) — SPA, αποτελέσματα με JS → render + CSS grid.
+HONDOS_LABEL = "Hondos Center"
+_HONDOS_SEARCH_URL = "https://www.hondoscenter.com/el/all/f/search/{q}"
+_HONDOS_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('[class*="ProductCard"]')) {
+    const a = c.matches('a[href]') ? c : c.querySelector('a[href]'); if (!a) continue;
+    let url; try { url = new URL(a.getAttribute('href'), location.origin).href; } catch (e) { continue; }
+    if (seen.has(url)) continue;
+    const img = c.querySelector('img');
+    const pe = c.querySelector('.ProductPrice-PriceValue, [class*="PriceValue"], [class*="price" i]');
+    const price = pe ? num(pe.textContent) : null;
+    let name = (a.getAttribute('title') || a.getAttribute('aria-label') || (img && img.getAttribute('alt')) || '').trim();
+    if (name.length < 3) continue;
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image: img?(img.getAttribute('src')||img.getAttribute('data-src')||''):'',
+                 url, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def hondos_search(query, limit=25):
+    """Απευθείας αναζήτηση στο hondoscenter.com (καλλυντικά — SPA render, CSS grid)."""
+    return jsonld_itemlist_search(
+        HONDOS_LABEL, _HONDOS_SEARCH_URL, query, limit,
+        wait_selector='[class*="ProductCard"]', parse_js=_HONDOS_PARSE_JS)
+
+
 def search_shops(query, labels):
     """Επιστρέφει (rows, diagnostics). Skroutz/Public/Πολιτεία/eBay → Playwright·
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
@@ -1500,7 +1545,8 @@ def search_shops(query, labels):
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
     http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
                    PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-                   COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL}
+                   COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL, SEPHORA_LABEL,
+                   HONDOS_LABEL}
     others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
@@ -1547,6 +1593,14 @@ def search_shops(query, labels):
         diags.append(diag)
     if MOUSTAKAS_LABEL in labels:
         r, diag = moustakas_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if SEPHORA_LABEL in labels:
+        r, diag = sephora_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if HONDOS_LABEL in labels:
+        r, diag = hondos_search(query)
         results.extend(r)
         diags.append(diag)
     for l in others:
@@ -1602,10 +1656,15 @@ def search_all(query, labels):
         jobs.append((LEROY_LABEL, lambda: leroymerlin_search(query)))
     if MOUSTAKAS_LABEL in labels:
         jobs.append((MOUSTAKAS_LABEL, lambda: moustakas_search(query)))
+    if SEPHORA_LABEL in labels:
+        jobs.append((SEPHORA_LABEL, lambda: sephora_search(query)))
+    if HONDOS_LABEL in labels:
+        jobs.append((HONDOS_LABEL, lambda: hondos_search(query)))
 
     known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
               EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
-              COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL}
+              COSMOS_LABEL, LEROY_LABEL, MOUSTAKAS_LABEL, SEPHORA_LABEL,
+              HONDOS_LABEL}
              | set(PLAYWRIGHT_SEARCH))
     rows_all, diags = [], []
     for l in labels:
