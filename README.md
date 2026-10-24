@@ -40,6 +40,12 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.20
+- **ePapoutsia** (απευθείας) στην κατηγορία «Μόδα» — παπούτσια/αξεσουάρ (Nuxt SSR,
+  όμιλος eobuwie/MODIVO). Δοκιμασμένο live: ~72 προϊόντα/αναζήτηση με τιμή+εικόνα.
+- Πρόσθετος έλεγχος μεγάλων αλυσίδων: **e-jumbo** = AJAX-rendered results (δύσκολο),
+  **Κωτσόβολος/Πλαίσιο** = API SPAs, **MediaMarkt→Public**. Οι aggregators τις καλύπτουν.
+
 ### Αλλαγές 0.19 — Φάση 2 (απευθείας πηγές)
 - **Pharm24** (απευθείας online φαρμακείο) στην κατηγορία «Υγεία & Ομορφιά» —
   μέσω γενικού **JSON-LD ItemList engine** (`jsonld_itemlist_search`), που διαβάζει

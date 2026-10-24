@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.19"
+VERSION = "0.20"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1339,13 +1339,52 @@ def pharm24_search(query, limit=25):
         parse_js=_PHARM24_PARSE_JS)
 
 
+# ePapoutsia (παπούτσια/μόδα) — Nuxt SSR, καθαρές κάρτες .product-card-small.
+EPAPOUTSIA_LABEL = "ePapoutsia"
+_EPAPOUTSIA_SEARCH_URL = "https://epapoutsia.gr/s/{q}?q={q}"
+_EPAPOUTSIA_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('.product-card-small, li.product-list-item')) {
+    const a = c.querySelector('a.product-card-link, a[href^="/p/"], a[href]');
+    if (!a) continue;
+    let url; try { url = new URL(a.getAttribute('href'), location.origin).href; } catch (e) { continue; }
+    if (!/\/p\//.test(url) || seen.has(url)) continue;
+    const img = c.querySelector('img');
+    const pe = c.querySelector('.product-price');
+    const price = pe ? num(pe.textContent) : null;
+    let name = (a.getAttribute('title') || a.getAttribute('aria-label') || (img && img.getAttribute('alt')) || '').trim();
+    if (name.length < 2) continue;
+    let image = '';
+    const pic = c.querySelector('picture source[srcset], img[src], img[data-src]');
+    if (pic) { const ss = pic.getAttribute('srcset');
+      image = ss ? ss.split(',')[0].trim().split(' ')[0] : (pic.getAttribute('src') || pic.getAttribute('data-src') || ''); }
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image, url, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def epapoutsia_search(query, limit=25):
+    """Απευθείας αναζήτηση στο epapoutsia.gr (παπούτσια/μόδα — Nuxt SSR, CSS grid)."""
+    return jsonld_itemlist_search(
+        EPAPOUTSIA_LABEL, _EPAPOUTSIA_SEARCH_URL, query, limit,
+        wait_selector='.product-card-small, .product-list-item',
+        parse_js=_EPAPOUTSIA_PARSE_JS)
+
+
 def search_shops(query, labels):
     """Επιστρέφει (rows, diagnostics). Skroutz/Public/Πολιτεία/eBay → Playwright·
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
     results, diags = [], []
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
     http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
-                   PHARM24_LABEL}
+                   PHARM24_LABEL, EPAPOUTSIA_LABEL}
     others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
@@ -1372,6 +1411,10 @@ def search_shops(query, labels):
         diags.append(diag)
     if PHARM24_LABEL in labels:
         r, diag = pharm24_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if EPAPOUTSIA_LABEL in labels:
+        r, diag = epapoutsia_search(query)
         results.extend(r)
         diags.append(diag)
     for l in others:
@@ -1417,9 +1460,11 @@ def search_all(query, labels):
         jobs.append((EBAY_LABEL, lambda: ebay_search(query)))
     if PHARM24_LABEL in labels:
         jobs.append((PHARM24_LABEL, lambda: pharm24_search(query)))
+    if EPAPOUTSIA_LABEL in labels:
+        jobs.append((EPAPOUTSIA_LABEL, lambda: epapoutsia_search(query)))
 
     known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
-              EBAY_LABEL, PHARM24_LABEL}
+              EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL}
              | set(PLAYWRIGHT_SEARCH))
     rows_all, diags = [], []
     for l in labels:
