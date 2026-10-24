@@ -40,6 +40,13 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.21 — Περισσότερες απευθείας πηγές (live-checked)
+- **Pharmacy295** (Υγεία & Ομορφιά) — JSON-LD ItemList, χωρίς brand redirect.
+- **Cosmos Sport** (Αθλητικά) — PrestaShop grid (AJAX render).
+- **Leroy Merlin** (Σπίτι) — server-rendered grid `.product-miniature`.
+- Ελεγμένα & ΟΧΙ (SPA/κλειστά): You.gr, e-Jumbo, Factory Outlet, MyShoe(κλειστό),
+  Κωτσόβολος, Πλαίσιο, MediaMarkt(→Public), Pharmacy4u. Τα πιάνουν οι aggregators.
+
 ### Αλλαγές 0.20
 - **ePapoutsia** (απευθείας) στην κατηγορία «Μόδα» — παπούτσια/αξεσουάρ (Nuxt SSR,
   όμιλος eobuwie/MODIVO). Δοκιμασμένο live: ~72 προϊόντα/αναζήτηση με τιμή+εικόνα.

@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.20"
+VERSION = "0.21"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1378,13 +1378,95 @@ def epapoutsia_search(query, limit=25):
         parse_js=_EPAPOUTSIA_PARSE_JS)
 
 
+# Pharmacy295 (φαρμακείο) — Nuxt, αλλά η σελίδα αποτελεσμάτων έχει καθαρό JSON-LD
+# ItemList → δουλεύει με τον γενικό parser (χωρίς CSS). ΔΕΝ κάνει brand redirect.
+PHARMACY295_LABEL = "Pharmacy295"
+_PHARMACY295_SEARCH_URL = "https://www.pharmacy295.gr/search?q={q}"
+
+
+def pharmacy295_search(query, limit=25):
+    """Απευθείας αναζήτηση στο online φαρμακείο Pharmacy295 (JSON-LD ItemList)."""
+    return jsonld_itemlist_search(PHARMACY295_LABEL, _PHARMACY295_SEARCH_URL, query, limit)
+
+
+# Cosmos Sport (αθλητικά) — PrestaThemed, αποτελέσματα με AJAX → render + CSS grid.
+COSMOS_LABEL = "Cosmos Sport"
+_COSMOS_SEARCH_URL = "https://www.cosmossport.gr/el/search?q={q}"
+_COSMOS_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('.ajax_block_product')) {
+    const a = c.querySelector('a.product_img_link, a[href*=".html"], a[href]'); if (!a) continue;
+    let url; try { url = new URL(a.getAttribute('href'), location.origin).href; } catch (e) { continue; }
+    if (seen.has(url)) continue;
+    const img = c.querySelector('img');
+    const pe = c.querySelector('.content_price, .price, [class*="price"]');
+    const price = pe ? num(pe.textContent) : null;
+    let name = (a.getAttribute('title') || (img && img.getAttribute('alt')) || '').trim();
+    if (name.length < 2) continue;
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image: img?(img.getAttribute('src')||img.getAttribute('data-src')||''):'',
+                 url, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def cosmossport_search(query, limit=25):
+    """Απευθείας αναζήτηση στο cosmossport.gr (αθλητικά — AJAX render, CSS grid)."""
+    return jsonld_itemlist_search(
+        COSMOS_LABEL, _COSMOS_SEARCH_URL, query, limit,
+        wait_selector='.ajax_block_product', parse_js=_COSMOS_PARSE_JS)
+
+
+# Leroy Merlin (σπίτι/DIY) — server-rendered grid .product-miniature.
+LEROY_LABEL = "Leroy Merlin"
+_LEROY_SEARCH_URL = "https://www.leroymerlin.gr/gr/search?q={q}"
+_LEROY_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('.product-miniature')) {
+    const a = c.querySelector('a[href]'); if (!a) continue;
+    let url; try { url = new URL(a.getAttribute('href'), location.origin).href; } catch (e) { continue; }
+    if (seen.has(url)) continue;
+    const te = c.querySelector('.artTitle, [class*="title"]');
+    let name = (te ? te.textContent : (c.getAttribute('data-name') || '')).trim();
+    if (name.length < 2) continue;
+    const pe = c.querySelector('.artNormalPrice, .artPrice, [class*="price"]');
+    const price = pe ? num(pe.textContent) : null;
+    const img = c.querySelector('img');
+    let image = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
+    if (!image || /data:image|placeholder/.test(image)) { const n2 = c.querySelector('noscript img'); if (n2) image = n2.getAttribute('src') || image; }
+    seen.add(url);
+    items.push({ title:name.slice(0,160), price, image, url, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def leroymerlin_search(query, limit=25):
+    """Απευθείας αναζήτηση στο leroymerlin.gr (σπίτι/DIY — SSR grid)."""
+    return jsonld_itemlist_search(
+        LEROY_LABEL, _LEROY_SEARCH_URL, query, limit,
+        wait_selector='.product-miniature', parse_js=_LEROY_PARSE_JS)
+
+
 def search_shops(query, labels):
     """Επιστρέφει (rows, diagnostics). Skroutz/Public/Πολιτεία/eBay → Playwright·
     e-shop.gr & Σούπερ Μάρκετ → HTTP/API· τα υπόλοιπα → ειλικρινές μήνυμα."""
     results, diags = [], []
     pw = [l for l in labels if l in PLAYWRIGHT_SEARCH]
     http_simple = {"e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL, EBAY_LABEL,
-                   PHARM24_LABEL, EPAPOUTSIA_LABEL}
+                   PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
+                   COSMOS_LABEL, LEROY_LABEL}
     others = [l for l in labels if l not in PLAYWRIGHT_SEARCH and l not in http_simple]
     if pw:
         if not playwright_available():
@@ -1415,6 +1497,18 @@ def search_shops(query, labels):
         diags.append(diag)
     if EPAPOUTSIA_LABEL in labels:
         r, diag = epapoutsia_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if PHARMACY295_LABEL in labels:
+        r, diag = pharmacy295_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if COSMOS_LABEL in labels:
+        r, diag = cosmossport_search(query)
+        results.extend(r)
+        diags.append(diag)
+    if LEROY_LABEL in labels:
+        r, diag = leroymerlin_search(query)
         results.extend(r)
         diags.append(diag)
     for l in others:
@@ -1462,9 +1556,16 @@ def search_all(query, labels):
         jobs.append((PHARM24_LABEL, lambda: pharm24_search(query)))
     if EPAPOUTSIA_LABEL in labels:
         jobs.append((EPAPOUTSIA_LABEL, lambda: epapoutsia_search(query)))
+    if PHARMACY295_LABEL in labels:
+        jobs.append((PHARMACY295_LABEL, lambda: pharmacy295_search(query)))
+    if COSMOS_LABEL in labels:
+        jobs.append((COSMOS_LABEL, lambda: cosmossport_search(query)))
+    if LEROY_LABEL in labels:
+        jobs.append((LEROY_LABEL, lambda: leroymerlin_search(query)))
 
     known = ({"BestPrice", "e-shop.gr", SUPERMARKET_LABEL, POLITEIA_LABEL,
-              EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL}
+              EBAY_LABEL, PHARM24_LABEL, EPAPOUTSIA_LABEL, PHARMACY295_LABEL,
+              COSMOS_LABEL, LEROY_LABEL}
              | set(PLAYWRIGHT_SEARCH))
     rows_all, diags = [], []
     for l in labels:
