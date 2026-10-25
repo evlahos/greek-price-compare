@@ -312,6 +312,7 @@ a{color:var(--cy);text-decoration:none}
       <option value="rating" data-i18n="sort_rating"></option>
       <option value="shop" data-i18n="sort_shop"></option>
     </select>
+    <button class="btn ghost sm" id="shVideo" data-i18n="sh_video"></button>
     <button class="btn ghost sm" id="shHist" data-i18n="sh_hist"></button>
     <button class="btn ghost sm" id="shDec" data-i18n="sh_dec"></button>
     <button class="btn ghost sm" id="shAlert" data-i18n="sh_alert"></button>
@@ -360,7 +361,8 @@ const T={
     filters_btn:'⚙ Φίλτρα',f_price:'Τιμή',f_min_ph:'από €',f_max_ph:'έως €',f_stock:'Διαθέσιμα',f_rating:'Βαθμ. ≥',
     status_ready:'Έτοιμο. Γράψε προϊόν και πάτησε Αναζήτηση.',
     sort_price:'Τιμή ↑',sort_total:'Συνολικό κόστος ↑',sort_rating:'Αξιολόγηση ↓',sort_shop:'Κατάστημα Α–Ω',
-    sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',
+    sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',sh_video:'▶ Βίντεο',
+    video_title:'📺 Παρουσιάσεις βίντεο',video_none:'Δεν βρέθηκαν βίντεο.',video_search:'Αναζήτηση στο YouTube',video_loading:'Φόρτωση βίντεο…',
     cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
     cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
@@ -393,7 +395,8 @@ const T={
     filters_btn:'⚙ Filters',f_price:'Price',f_min_ph:'from €',f_max_ph:'to €',f_stock:'In stock',f_rating:'Rating ≥',
     status_ready:'Ready. Type a product and press Search.',
     sort_price:'Price ↑',sort_total:'Total cost ↑',sort_rating:'Rating ↓',sort_shop:'Store A–Z',
-    sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',
+    sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',sh_video:'▶ Videos',
+    video_title:'📺 Video reviews',video_none:'No videos found.',video_search:'Search on YouTube',video_loading:'Loading videos…',
     cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
     cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
@@ -417,11 +420,12 @@ const T={
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
 if(LANG!=='en'&&LANG!=='el')LANG='el';
 function t(k){const v=(T[LANG]||T.el)[k];return v==null?k:v}
-/* display name for a source chip (backend value stays canonical) */
+/* display name for a source (backend value stays canonical) */
+function srcFlag(s){ return (s==='eBay'||s==='Amazon')?'🇪🇺 ':''; }
 function srcDisplay(label){
   if(label==='Σούπερ Μάρκετ')return t('src_super');
   if(label==='Πολιτεία')return t('src_politeia');
-  return label;
+  return srcFlag(label)+label;
 }
 function applyStatic(){
   $$('[data-i18n]').forEach(e=>e.textContent=t(e.dataset.i18n));
@@ -441,7 +445,7 @@ function setLang(l){
   renderChips();
   if(allProducts.length)renderProducts();
   if($('#sheet').classList.contains('on')){
-    if(curProduct)$('#shSub').textContent=(curProduct.source||'')+(curProduct.offer_count?` · ${curProduct.offer_count} ${t('stores_word')}`:'');
+    if(curProduct)$('#shSub').textContent=srcDisplay(curProduct.source||'')+(curProduct.offer_count?` · ${curProduct.offer_count} ${t('stores_word')}`:'');
     if(offers.length)renderOffers();
   }
   if($('#cart').classList.contains('on'))renderCart(); else cartCount();
@@ -545,7 +549,7 @@ function renderProducts(){
     const sel=compare.includes(p);
     return `<div class="card${sel?' sel':''}" style="animation-delay:${i*40}ms" data-i="${i}">
       <button class="cmp" data-i="${i}" title="${esc(t('add_compare_t'))}">⇄</button>
-      <div class="thumb" style="${img}">${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(p.source||'')}</span></div>
+      <div class="thumb" style="${img}">${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(srcDisplay(p.source||''))}</span></div>
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
         <div class="meta"><div class="price"><small>${esc(t('from'))}</small>${euro(p.price_from)}</div>
         <div class="tags">${rtag}${cnt}</div></div></div></div>`;
@@ -609,7 +613,7 @@ $('#shBack').onclick=()=>openSheet(false); $('#scrim').onclick=()=>openSheet(fal
 async function openProduct(i){
   const p=products[i]; curProduct=p; offers=[];
   $('#shTitle').textContent=p.title||'—';
-  $('#shSub').textContent=(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
+  $('#shSub').textContent=srcDisplay(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
   openSheet(true);
@@ -661,6 +665,26 @@ $('#shHist').onclick=async()=>{if(!curProduct?.product_id)return toast(t('hist_o
   dialogHTML(t('hist_title'),(chart?`<div style="margin-bottom:14px">${chart}</div>`:'')+
     `<pre style="white-space:pre-wrap;font:500 13px/1.6 Inter;color:var(--ink);margin:0">${esc(d.text||'—')}</pre>`)};
 $('#shDec').onclick=async()=>{const q=$('#q').value.trim();const d=await api('/api/decision?q='+encodeURIComponent(q)+'&postal='+encodeURIComponent($('#postal').value.trim()));dialog(t('dec_title'),d.text||'—')};
+$('#shVideo').onclick=async()=>{
+  if(!curProduct)return; const q=curProduct.title||''; if(!q)return;
+  const btn=$('#shVideo'); const prev=btn.textContent; btn.disabled=true; btn.textContent=t('video_loading');
+  let vids=[];
+  try{const d=await api('/api/videos?q='+encodeURIComponent(q)); vids=(d&&d.videos)||[];}catch(e){}
+  btn.disabled=false; btn.textContent=prev;
+  const yurl='https://www.youtube.com/results?search_query='+encodeURIComponent(q);
+  if(!vids.length){ dialogHTML(t('video_title'),
+    `<div class="empty"><div class="big">📺</div>${esc(t('video_none'))}<br>
+     <a href="${yurl}" target="_blank" rel="noopener">${esc(t('video_search'))} ↗</a></div>`); return; }
+  const html=vids.map(v=>`<div style="margin-bottom:16px">
+    <div style="position:relative;padding-top:56.25%;border-radius:12px;overflow:hidden;border:1px solid var(--stroke)">
+      <iframe src="https://www.youtube.com/embed/${encodeURIComponent(v.id)}" title="${esc(v.title)}"
+        loading="lazy" allow="encrypted-media;picture-in-picture;fullscreen" allowfullscreen
+        style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe></div>
+    <div style="margin-top:7px;font:600 13px Inter;color:var(--ink)">${esc(v.title)}</div>
+    <div style="font:500 12px Inter;color:var(--mut)">${esc(v.channel||'')}${v.duration?' · '+esc(v.duration):''}</div></div>`).join('')
+    +`<div style="text-align:right"><a href="${yurl}" target="_blank" rel="noopener" style="font:600 12px Inter">${esc(t('video_search'))} ↗</a></div>`;
+  dialogHTML(t('video_title'),html);
+};
 $('#shAlert').onclick=()=>{if(!curProduct)return;const cur=parseFloat(curProduct.price_from)||'';
   const v=prompt(t('alert_prompt')(curProduct.title),cur);
   if(v==null)return;const th=parseFloat(v);if(!isFinite(th))return;

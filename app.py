@@ -100,6 +100,17 @@ def api_bp_image():
     return jsonify({"image": core.bestprice_image(pid)})
 
 
+@app.get("/api/videos")
+def api_videos():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"videos": []})
+    try:
+        return jsonify({"videos": core.youtube_videos(q)})
+    except Exception as exc:
+        return jsonify({"videos": [], "error": str(exc)})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "8765"))
     app.run(host="0.0.0.0", port=port, threaded=True)

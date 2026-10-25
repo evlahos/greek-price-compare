@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-# Εγκατάσταση & εκκίνηση (καλείται από το ΕΓΚΑΤΑΣΤΑΣΗ.bat μέσω PowerShell).
+# Εγκατάσταση & εκκίνηση (καλείται από το INSTALL.bat μέσω PowerShell).
 param([switch]$Browser)
 
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
@@ -34,7 +34,7 @@ if (-not $py) {
     }
     winget install -e --id Python.Python.3.12 --scope user --silent --accept-source-agreements --accept-package-agreements | Out-Null
     $py = Find-Python
-    if (-not $py) { Write-Host "[i] Η Python μπήκε. Κλείσε και ξανατρέξε το ΕΓΚΑΤΑΣΤΑΣΗ.bat." -ForegroundColor Yellow; Read-Host "Enter"; exit 0 }
+    if (-not $py) { Write-Host "[i] Η Python μπήκε. Κλείσε και ξανατρέξε το INSTALL.bat." -ForegroundColor Yellow; Read-Host "Enter"; exit 0 }
 }
 Write-Host "[1/4] Python: εντάξει" -ForegroundColor Green
 
@@ -71,7 +71,7 @@ if (-not (Test-Path $browserFlag)) {
 # 4) Συντόμευση (native παράθυρο)
 Write-Host "[4/4] Συντόμευση στην Επιφάνεια Εργασίας..." -ForegroundColor Yellow
 try {
-    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Σύγκριση Τιμών.lnk'
+    $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Price Compare.lnk'
     $ws = New-Object -ComObject WScript.Shell; $sc = $ws.CreateShortcut($lnk)
     $sc.TargetPath = $venvPyw; $sc.Arguments = '"' + (Join-Path $here 'desktop.py') + '"'
     $sc.WorkingDirectory = $here

@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.25"
+VERSION = "0.26"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1926,6 +1926,51 @@ def format_decision(data):
     return "\n".join(lines) if lines else json.dumps(data, ensure_ascii=False, indent=2)
 
 
+
+
+# ============================ YouTube (παρουσιάσεις) ============================ #
+_YT_VID_RE = re.compile(
+    r'"videoRenderer":\{"videoId":"([\w-]{11})".*?"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"',
+    re.S)
+_YT_CH_RE = re.compile(r'"longBylineText":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"')
+_YT_DUR_RE = re.compile(r'"simpleText":"(\d{1,2}:\d{2}(?::\d{2})?)"')
+
+
+def _yt_decode(raw):
+    try:
+        return json.loads('"' + raw + '"')
+    except Exception:
+        return raw
+
+
+def youtube_videos(query, limit=3):
+    """Παρουσιάσεις/reviews από YouTube για ένα προϊόν (server-rendered search →
+    ytInitialData). Επιστρέφει λίστα {id,title,channel,duration}."""
+    q = urllib.parse.quote((query or "").strip() + " review")
+    url = f"https://www.youtube.com/results?search_query={q}"
+    try:
+        # Το CONSENT cookie παρακάμπτει το EU consent wall ώστε να έρθει το
+        # ytInitialData (αλλιώς το YouTube γυρίζει τη σελίδα συγκατάθεσης).
+        html = http_get(url, timeout=12,
+                        extra_headers={"Accept-Language": "en-US,en;q=0.8",
+                                       "Cookie": "CONSENT=YES+1; SOCS=CAI"})
+    except Exception:
+        return []
+    vids, seen = [], set()
+    for m in _YT_VID_RE.finditer(html):
+        vid = m.group(1)
+        if vid in seen:
+            continue
+        seen.add(vid)
+        win = html[m.start():m.start() + 1500]
+        cm = _YT_CH_RE.search(win)
+        dm = _YT_DUR_RE.search(win)
+        vids.append({"id": vid, "title": _yt_decode(m.group(2)),
+                     "channel": _yt_decode(cm.group(1)) if cm else "",
+                     "duration": dm.group(1) if dm else ""})
+        if len(vids) >= limit:
+            break
+    return vids
 
 
 _BP_IMG_CACHE = {}
