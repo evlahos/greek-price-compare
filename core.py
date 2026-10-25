@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.24"
+VERSION = "0.25"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1150,27 +1150,31 @@ _EBAY_PARSE_JS = r"""
 
 
 def _parse_ebay(html, limit=25):
-    """Python parser του eBay.de SRP (server-rendered). Για κάθε /itm/ link,
-    διαβάζει τίτλο/τιμή/εικόνα από το περιβάλλον της κάρτας."""
+    """Python parser του eBay.de SRP (server-rendered). Σπάει το HTML σε κάρτες
+    (<li class="s-card…) και διαβάζει id/τίτλο/τιμή/εικόνα από κάθε κάρτα."""
     items, seen = [], set()
-    for m in re.finditer(r'href="(https://www\.ebay\.de/itm/(\d+)[^"]*)"', html):
-        pid = m.group(2)
+    for ch in re.split(r'<li\s+class="s-card', html)[1:]:
+        m = re.search(r'/itm/(\d+)', ch)
+        if not m:
+            continue
+        pid = m.group(1)
         if pid == "123456" or pid in seen:
             continue
-        url = m.group(1).split("?")[0]
-        win = html[m.start():m.start() + 3500]
-        tm = re.search(r's-card__title[^>]*>(?:\s*<[^>]+>)*\s*([^<]{4,180})', win)
+        tm = re.search(r's-card__title[^>]*>(?:\s*<[^>]+>)*\s*([^<]{3,180})', ch)
         if not tm:
             continue
         title = unescape(tm.group(1)).strip()
         if not title or title.lower().startswith("shop on ebay"):
             continue
-        pm = re.search(r's-card__price[^>]*>(?:\s*<[^>]+>)*\s*([^<]*?EUR[^<]*?)\s*<', win)
+        pm = re.search(r's-card__price[^>]*>(?:\s*<[^>]+>)*\s*([^<]*?EUR[^<]*?)\s*<', ch)
         price = to_float(pm.group(1)) if pm else None
-        im = re.search(r'https://i\.ebayimg\.com/[^"\'\s>)]+', win)
+        im = re.search(r'https://i\.ebayimg\.com/[^"\'\s>)]+', ch)
+        um = re.search(r'(https://www\.ebay\.de/itm/\d+)', ch)
         seen.add(pid)
         items.append({"title": title, "price": price,
-                      "image": im.group(0) if im else "", "url": url, "shipping": None})
+                      "image": im.group(0) if im else "",
+                      "url": um.group(1) if um else f"https://www.ebay.de/itm/{pid}",
+                      "shipping": None})
         if len(items) >= limit:
             break
     return items
@@ -1636,6 +1640,42 @@ def hondos_search(query, limit=25):
         wait_selector='[class*="ProductCard"]', parse_js=_HONDOS_PARSE_JS, settle_ms=2000)
 
 
+# Amazon.de (τεχνολογία κ.ά., τιμές EUR) — SPA/anti-bot → Playwright + DOM parser.
+# ΠΡΟΣΟΧΗ: το Amazon έχει anti-bot· σε headless μπορεί περιστασιακά να δείξει
+# captcha και να γυρίσει 0 (graceful). Τα πιο αξιόπιστα παραμένουν τα aggregators.
+AMAZON_LABEL = "Amazon"
+_AMAZON_SEARCH_URL = "https://www.amazon.de/s?k={q}"
+_AMAZON_PARSE_JS = r"""
+() => {
+  const items = [], seen = new Set();
+  const num = s => { if (!s) return null; s = (s+'').replace(/[^\d.,]/g,'');
+    if (s.includes('.') && s.includes(',')) s = s.replace(/\./g,'').replace(',','.');
+    else if (s.includes(',')) s = s.replace(',','.'); const n = parseFloat(s); return isFinite(n)?n:null; };
+  for (const c of document.querySelectorAll('div[data-component-type="s-search-result"]')) {
+    const asin = c.getAttribute('data-asin'); if (!asin || seen.has(asin)) continue;
+    const img = c.querySelector('img.s-image');
+    const pe = c.querySelector('.a-price .a-offscreen');
+    const price = pe ? num(pe.textContent) : null;
+    let name = ''; const h2 = c.querySelector('h2'); if (h2) name = h2.textContent.trim();
+    if ((!name || name.length < 3) && img) name = (img.getAttribute('alt') || '').trim();
+    if (name.length < 3) continue;
+    seen.add(asin);
+    items.push({ title:name.slice(0,160), price, image: img?(img.getAttribute('src')||''):'',
+                 url:'https://www.amazon.de/dp/'+asin, rating:null, availability:'', currency:'EUR' });
+  }
+  return items;
+};
+"""
+
+
+def amazon_search(query, limit=25):
+    """Απευθείας αναζήτηση στο amazon.de (Playwright + DOM· anti-bot = περιστασιακά 0)."""
+    return jsonld_itemlist_search(
+        AMAZON_LABEL, _AMAZON_SEARCH_URL, query, limit,
+        wait_selector='div[data-component-type="s-search-result"]',
+        parse_js=_AMAZON_PARSE_JS, settle_ms=1200)
+
+
 # ── Μητρώο απευθείας πηγών: label → συνάρτηση (query) → (rows, diag). ──────────
 # Προσθήκη νέας πηγής = ΜΙΑ γραμμή εδώ (+ chip στο UI). Το `known` και τα jobs
 # παράγονται αυτόματα από αυτό — δεν χρειάζεται αλλαγή σε search_all/search_shops.
@@ -1644,6 +1684,7 @@ DIRECT_SOURCES = {
     SUPERMARKET_LABEL: supermarket_search,
     POLITEIA_LABEL: politeia_search,
     EBAY_LABEL: ebay_search,
+    AMAZON_LABEL: amazon_search,
     PHARM24_LABEL: pharm24_search,
     EPAPOUTSIA_LABEL: epapoutsia_search,
     PHARMACY295_LABEL: pharmacy295_search,

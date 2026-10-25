@@ -40,6 +40,12 @@ docker compose up --build   →   http://localhost:8765
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
 
+### Αλλαγές 0.25
+- **eBay parser διόρθωση** (split-ανά-κάρτα): επικυρώθηκε live 60/60 προϊόντα.
+- **Amazon.de** (Τεχνολογία) — Playwright + DOM parser, καθαρά /dp/ASIN URLs.
+  *(anti-bot: σε headless μπορεί περιστασιακά να γυρίσει 0 — graceful.)*
+- Επικυρώθηκαν live: eBay (60/60), BestPrice φωτο (`/item/{id}` og:image), Amazon (20).
+
 ### Αλλαγές 0.24 — Code review fixes + bugfixes
 - **eBay ξαναδουλεύει:** HTTP-first (το SRP είναι server-rendered & χωρίς cookies →
   παρακάμπτει consent/headless) με Playwright fallback.
