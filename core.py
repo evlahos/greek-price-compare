@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.30"
+VERSION = "0.31"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1806,6 +1806,67 @@ def search_all(query, labels):
         s = r.get("source")
         counts[s] = counts.get(s, 0) + 1
     return rows_all, counts, diags
+
+
+def _build_jobs(query, labels):
+    """Κοινή κατασκευή jobs για search_all / search_all_stream.
+    Επιστρέφει (jobs, unsupported_diags) όπου κάθε job = (key, fn, members)."""
+    labels = list(labels)
+    jobs = []  # (key, callable → (rows, diag_or_None), members[list of source labels])
+
+    if "BestPrice" in labels:
+        def _bp():
+            try:
+                return BESTPRICE.search(query), None
+            except Exception as exc:
+                return [], f"BestPrice: {exc}"
+        jobs.append(("BestPrice", _bp, ["BestPrice"]))
+
+    pwl = [l for l in labels if l in PLAYWRIGHT_SEARCH]
+    if pwl:
+        def _pw():
+            if not playwright_available():
+                return [], " | ".join(f"{l}: {PLAYWRIGHT_HINT}" for l in pwl)
+            rows, d = playwright_search_all(pwl, query)
+            return rows, (" | ".join(d) if d else None)
+        jobs.append(("Playwright", _pw, list(pwl)))
+
+    for label, fn in DIRECT_SOURCES.items():
+        if label in labels:
+            jobs.append((label, (lambda f=fn: f(query)), [label]))
+
+    known = {"BestPrice"} | set(PLAYWRIGHT_SEARCH) | set(DIRECT_SOURCES)
+    unsupported = []
+    for l in labels:
+        if l not in known:
+            unsupported.append(f"{l}: {'ειδικό frontend — δεν υποστηρίζεται ακόμη' if l in UNSUPPORTED_SHOPS else 'μη υποστηριζόμενο'}")
+    return jobs, unsupported
+
+
+def search_all_stream(query, labels):
+    """Generator που τρέχει τις πηγές ΠΑΡΑΛΛΗΛΑ και παράγει αποτελέσματα ΑΝΑ ΠΗΓΗ
+    μόλις ολοκληρώνεται η καθεμία (as_completed), ώστε το UI να τα δείχνει
+    προοδευτικά. Παράγει dicts: {'type': 'meta'|'source'|'done', ...}."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    jobs, unsupported = _build_jobs(query, labels)
+    yield {"type": "meta", "unsupported": unsupported}
+    if jobs:
+        with ThreadPoolExecutor(max_workers=min(len(jobs), _MAX_PARALLEL)) as ex:
+            fut2meta = {ex.submit(fn): (key, members) for key, fn, members in jobs}
+            for fut in as_completed(fut2meta):
+                key, members = fut2meta[fut]
+                try:
+                    r, d = fut.result()
+                except Exception as exc:
+                    r, d = [], f"{key}: {exc}"
+                r = r or []
+                bylabel = {}
+                for row in r:
+                    s = row.get("source")
+                    bylabel[s] = bylabel.get(s, 0) + 1
+                yield {"type": "source", "key": key, "members": members,
+                       "products": r, "count": len(r), "note": d, "bylabel": bylabel}
+    yield {"type": "done"}
 
 
 BESTPRICE = BestPriceSource()

@@ -6,10 +6,11 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 
 import core
 
@@ -39,6 +40,30 @@ def api_search():
     except Exception as exc:
         return jsonify({"query": q, "products": [], "counts": {}, "diagnostics": [str(exc)]})
     return jsonify({"query": q, "products": rows, "counts": counts, "diagnostics": diags})
+
+
+@app.get("/api/search_stream")
+def api_search_stream():
+    """Προοδευτική αναζήτηση (SSE): στέλνει αποτελέσματα ανά πηγή μόλις έρχονται."""
+    q = (request.args.get("q") or "").strip()
+    sources = [s for s in (request.args.get("sources") or "").split(",") if s]
+
+    def gen():
+        if not q:
+            yield "data: " + json.dumps({"type": "error", "error": "Λείπει το ερώτημα."}) + "\n\n"
+            return
+        # Το sync Playwright δεν είναι ασφαλές για ταυτόχρονες αναζητήσεις —
+        # σειριοποιούμε ολόκληρο το stream (όπως και το /api/search).
+        with _PW_LOCK:
+            try:
+                for ev in core.search_all_stream(q, sources):
+                    yield "data: " + json.dumps(ev, ensure_ascii=False) + "\n\n"
+            except Exception as exc:
+                yield "data: " + json.dumps({"type": "error", "error": str(exc)}) + "\n\n"
+
+    return Response(stream_with_context(gen()), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
+                             "Connection": "keep-alive"})
 
 
 @app.get("/api/offers")

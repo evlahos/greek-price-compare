@@ -242,6 +242,19 @@ a{color:var(--cy);text-decoration:none}
 .tag.unit{color:var(--cy);border-color:rgba(34,211,238,.4)}
 .offer .save{display:block;font:600 10px Inter;color:var(--gr);text-align:right;margin-top:1px}
 
+/* per-source live status / filter chips */
+.srcstat{display:flex;gap:7px;flex-wrap:wrap;margin:12px 2px 0}
+.sstat{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--stroke);background:var(--panel);
+  color:var(--mut);font:600 12px Inter;padding:5px 11px;border-radius:999px;cursor:pointer;user-select:none;transition:.2s}
+.sstat .d{width:8px;height:8px;border-radius:50%;background:var(--mut2);flex:none}
+.sstat b{color:var(--ink);font-weight:800}
+.sstat.load .d{background:var(--am);animation:pulse 1s infinite}
+.sstat.ok{color:var(--ink);border-color:rgba(52,211,153,.45)}
+.sstat.ok .d{background:var(--gr);box-shadow:0 0 8px var(--gr)}
+.sstat.warn{border-color:rgba(251,113,133,.55)} .sstat.warn .d{background:var(--rd)}
+.sstat.off{opacity:.42}.sstat.off b{text-decoration:line-through}
+@keyframes pulse{50%{opacity:.35}}
+
 /* ---------- light theme ---------- */
 :root[data-theme="light"]{
   --bg:#eef1f8;--bg2:#ffffff;--panel:rgba(12,20,45,.045);--panel2:rgba(12,20,45,.08);
@@ -318,6 +331,7 @@ a{color:var(--cy);text-decoration:none}
 
   <div class="status" id="status"><span id="statusTxt"></span>
     <span class="bar" id="bar"><i></i></span></div>
+  <div class="srcstat" id="srcStatus"></div>
 
   <div class="sect"><span id="sectlbl"></span><span class="ln"></span></div>
   <div class="grid-p" id="grid"></div>
@@ -501,6 +515,7 @@ function setLang(l){
   $('#sectlbl').textContent=t('sect_'+mode);
   if(!$('#bar').classList.contains('on'))$('#statusTxt').textContent=t('status_ready');
   renderChips();
+  if(Object.keys(srcStat).length)renderSrcStatus();
   if(allProducts.length)renderProducts();
   if($('#sheet').classList.contains('on')){
     if(curProduct)$('#shSub').textContent=shSubText(curProduct);
@@ -523,6 +538,7 @@ const SOURCES={
 let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compare=[];
 let cart=load('gpc_cart',[]), history=load('gpc_hist',[]), alerts=load('gpc_alerts',[]);
 let srcState={};
+let srcHidden={}, srcStat={}, streamNotes=[], exactMode=false, curES=null;
 
 function load(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -539,38 +555,118 @@ function renderChips(){
   });
 }
 function setMode(m){mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-  $('#sectlbl').textContent=t('sect_'+m);renderChips()}
+  $('#sectlbl').textContent=t('sect_'+m);renderChips();
+  srcStat={};srcHidden={};$('#srcStatus').innerHTML=''}
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
 
 /* ---------- search ---------- */
 function busy(on,txt){$('#bar').classList.toggle('on',on);if(txt!=null)$('#statusTxt').textContent=txt;
   $('#go').disabled=on;$('#gox').disabled=on}
+const SLOW_SRC=['Skroutz','Public','Πολιτεία','Pharm24','eBay','Amazon','ePapoutsia','Pharmacy295','Cosmos Sport','Leroy Merlin','Moustakas','Sephora','Hondos Center'];
+function pickSources(){return SOURCES[mode].filter(([l,id])=>srcState[id]).map(([l])=>l)}
+function cleanNote(n){return n&&!/:\s*\d+\s+(προϊόντα|αγγελίες|βιβλία)\s*$/.test(n)&&!/:\s*0\s/.test(n)&&!/δεν βρέθηκαν/.test(n)}
+
+/* δείκτες κατάστασης ανά πηγή (φόρτωση / N αποτελέσματα / μπλοκ) + φίλτρο */
+function initSrcStatus(sources){
+  srcStat={}; srcHidden={};
+  sources.forEach(s=>srcStat[s]={state:'load',count:0,note:''});
+  renderSrcStatus();
+}
+function renderSrcStatus(){
+  const box=$('#srcStatus'); const keys=Object.keys(srcStat);
+  if(!keys.length){box.innerHTML='';return}
+  box.innerHTML=keys.map(s=>{
+    const st=srcStat[s]; const off=srcHidden[s]?' off':'';
+    const cls=st.state==='load'?'load':(st.state==='warn'?'warn':(st.count>0?'ok':''));
+    const cnt=st.state==='load'?'…':st.count;
+    const tip=st.note?` title="${esc(st.note)}"`:'';
+    return `<span class="sstat ${cls}${off}" data-s="${esc(s)}"${tip}><span class="d"></span>${esc(srcDisplay(s))} <b>${cnt}</b></span>`;
+  }).join('');
+  box.querySelectorAll('.sstat').forEach(c=>c.onclick=()=>{
+    const s=c.dataset.s; srcHidden[s]=!srcHidden[s]; c.classList.toggle('off',srcHidden[s]); applyFilters();
+  });
+}
+function setSrcStatus(label,count,note){
+  const st=srcStat[label]||(srcStat[label]={state:'load',count:0,note:''});
+  st.count=count; st.note=note||''; st.state=(count>0)?'ok':(note?'warn':'ok');
+  renderSrcStatus();
+}
+
+function doSearchStream(exact){
+  const q=$('#q').value.trim(); if(!q)return;
+  const sources=pickSources();
+  if(!sources.length){toast(t('pick_source'),'⚠️');return}
+  if(curES){try{curES.close()}catch(e){}curES=null}
+  exactMode=!!exact; streamNotes=[];
+  allProducts=[]; compare=[]; updateCmp();
+  initSrcStatus(sources);
+  const slow=sources.some(s=>SLOW_SRC.includes(s));
+  busy(true,t('searching')+(slow?t('via_browser'):''));
+  skeletons();
+  let gotAny=false, cleared=false, done=false;
+  const url='/api/search_stream?q='+encodeURIComponent(q)+'&sources='+encodeURIComponent(sources.join(','));
+  let es; try{es=new EventSource(url)}catch(e){doSearch(exact);return}
+  curES=es;
+  const finish=()=>{
+    if(done)return; done=true; try{es.close()}catch(e){} curES=null;
+    const sum=Object.keys(srcStat).map(s=>`${srcDisplay(s)}: ${srcStat[s].count}`).join(' · ');
+    const notes=streamNotes.filter(cleanNote);
+    busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
+    pushHistory(q); checkAlerts(allProducts);
+  };
+  es.onmessage=(e)=>{
+    let ev; try{ev=JSON.parse(e.data)}catch(_){return}
+    if(ev.type==='meta'){ (ev.unsupported||[]).forEach(n=>streamNotes.push(n)); }
+    else if(ev.type==='source'){
+      let prods=ev.products||[];
+      if(exact) prods=prods.filter(p=>exactMatch(p.title||'',q)||exactMatch(p.product_url||'',q));
+      // ενημέρωση δεικτών ανά μέλος-πηγή (το Playwright group φέρνει πολλές)
+      (ev.members||[ev.key]).forEach(m=>{
+        const c=(ev.bylabel&&ev.bylabel[m])||0;
+        const useC=exact?prods.filter(p=>p.source===m).length:c;
+        setSrcStatus(m,useC,ev.note);
+      });
+      if(ev.note)streamNotes.push(ev.note);
+      if(prods.length){ if(!cleared){$('#grid').innerHTML='';cleared=true;} allProducts=allProducts.concat(prods); gotAny=true; applyFilters(); }
+    }
+    else if(ev.type==='done'){ if(!gotAny&&!cleared){$('#grid').innerHTML='';} finish(); }
+    else if(ev.type==='error'){ try{es.close()}catch(_){ } curES=null; busy(false,t('error')+(ev.error||'')); }
+  };
+  es.onerror=()=>{
+    if(done)return;
+    try{es.close()}catch(_){ } curES=null;
+    if(!gotAny){ doSearch(exact); }  // fallback στο blocking endpoint
+    else finish();
+  };
+}
+
 async function doSearch(exact){
   const q=$('#q').value.trim(); if(!q)return;
-  const sources=SOURCES[mode].filter(([l,id])=>srcState[id]).map(([l])=>l);
+  const sources=pickSources();
   if(!sources.length){toast(t('pick_source'),'⚠️');return}
-  const slow=sources.some(s=>['Skroutz','Public','Πολιτεία','Pharm24','eBay','Amazon','ePapoutsia','Pharmacy295','Cosmos Sport','Leroy Merlin','Moustakas','Sephora','Hondos Center'].includes(s));
+  const slow=sources.some(s=>SLOW_SRC.includes(s));
   busy(true,t('searching')+(slow?t('via_browser'):''));
   skeletons();
   try{
     const d=await api('/api/search?q='+encodeURIComponent(q)+'&sources='+encodeURIComponent(sources.join(',')));
     let prods=d.products||[];
     if(exact) prods=prods.filter(p=>exactMatch(p.title||'',q)||exactMatch(p.product_url||'',q));
-    allProducts=prods; compare=[]; updateCmp(); applyFilters();
+    exactMode=!!exact; allProducts=prods; compare=[]; updateCmp();
+    // δείκτες ανά πηγή από τα counts
+    srcStat={}; srcHidden={};
+    sources.forEach(s=>srcStat[s]={state:'ok',count:(d.counts&&d.counts[s])||0,note:''});
+    renderSrcStatus();
+    applyFilters();
     const sum=Object.entries(d.counts||{}).map(([k,v])=>`${k}: ${v}`).join(' · ');
-    // Κράτα μόνο πραγματικά σφάλματα/προειδοποιήσεις — κρύψε τα success counts
-    // (τα δείχνει ήδη η σύνοψη), τα μηδενικά και τα «δεν βρέθηκαν».
-    const notes=(d.diagnostics||[]).filter(n=>n
-      &&!/:\s*\d+\s+(προϊόντα|αγγελίες|βιβλία)\s*$/.test(n)
-      &&!/:\s*0\s/.test(n)
-      &&!/δεν βρέθηκαν/.test(n));
+    const notes=(d.diagnostics||[]).filter(cleanNote);
     busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
     pushHistory(q); checkAlerts(prods);
   }catch(e){busy(false,t('error')+e)}
 }
-$('#go').onclick=()=>doSearch(false);
-$('#gox').onclick=()=>doSearch(true);
-$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')doSearch(false)});
+function runSearch(exact){ if(window.EventSource) doSearchStream(exact); else doSearch(exact); }
+$('#go').onclick=()=>runSearch(false);
+$('#gox').onclick=()=>runSearch(true);
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(false)});
 $('#clear').onclick=()=>{$('#q').value='';$('#q').focus()};
 
 function skeletons(){$('#grid').innerHTML=Array(8).fill('<div class="sk"></div>').join('')}
@@ -583,6 +679,7 @@ function applyFilters(){
   const mn=parseFloat($('#fmin').value), mx=parseFloat($('#fmax').value);
   const stock=$('#fstock').classList.contains('on'); const mr=parseFloat($('#frating').value);
   products=allProducts.filter(p=>{
+    if(srcHidden[p.source])return false;
     const pr=parseFloat(p.price_from);
     if(isFinite(mn)&&(!isFinite(pr)||pr<mn))return false;
     if(isFinite(mx)&&(!isFinite(pr)||pr>mx))return false;
