@@ -330,7 +330,8 @@ a{color:var(--cy);text-decoration:none}
   </div>
 
   <div class="status" id="status"><span id="statusTxt"></span>
-    <span class="bar" id="bar"><i></i></span></div>
+    <span class="bar" id="bar"><i></i></span>
+    <button class="btn ghost sm" id="stopBtn" style="display:none;height:32px;padding:0 13px;font-size:12px"></button></div>
   <div class="srcstat" id="srcStatus"></div>
 
   <div class="sect"><span id="sectlbl"></span><span class="ln"></span></div>
@@ -433,6 +434,7 @@ const T={
     cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
     lowest:'💶 ΧΑΜΗΛΟΤΕΡΗ',lowest_t:'Χαμηλότερη τιμή στα τρέχοντα αποτελέσματα',save_word:'κερδίζεις',unit_pc:'τεμ',theme_t:'Εναλλαγή θέματος (φωτεινό/σκοτεινό)',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
+    stop_btn:'⏹ Διακοπή',refresh_btn:'↻ Ανανέωση',stopped:' · διακόπηκε',
     exact_note:'  · ακριβές όνομα',error:'Σφάλμα: ',
     no_products:'Δεν βρέθηκαν προϊόντα.',try_other:'Δοκίμασε άλλη διατύπωση ή πηγή.',
     markets:'μάρκετ',stores_short:'καταστ.',no_photo:'χωρίς φωτο',add_compare_t:'Προσθήκη στη σύγκριση',from:'από',
@@ -470,6 +472,7 @@ const T={
     cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
     lowest:'💶 LOWEST',lowest_t:'Lowest price in the current results',save_word:'you save',unit_pc:'pc',theme_t:'Toggle theme (light/dark)',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
+    stop_btn:'⏹ Stop',refresh_btn:'↻ Refresh',stopped:' · stopped',
     exact_note:'  · exact name',error:'Error: ',
     no_products:'No products found.',try_other:'Try different wording or another source.',
     markets:'markets',stores_short:'stores',no_photo:'no photo',add_compare_t:'Add to compare',from:'from',
@@ -516,6 +519,7 @@ function setLang(l){
   if(!$('#bar').classList.contains('on'))$('#statusTxt').textContent=t('status_ready');
   renderChips();
   if(Object.keys(srcStat).length)renderSrcStatus();
+  {const sb=$('#stopBtn');if(sb&&sb.style.display!=='none')sb.textContent=sb.dataset.mode==='stop'?t('stop_btn'):t('refresh_btn');}
   if(allProducts.length)renderProducts();
   if($('#sheet').classList.contains('on')){
     if(curProduct)$('#shSub').textContent=shSubText(curProduct);
@@ -539,6 +543,7 @@ let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compar
 let cart=load('gpc_cart',[]), history=load('gpc_hist',[]), alerts=load('gpc_alerts',[]);
 let srcState={};
 let srcHidden={}, srcStat={}, streamNotes=[], exactMode=false, curES=null;
+let streaming=false, curStop=null, lastQuery='', lastExact=false;
 
 function load(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch(e){return d}}
 function save(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
@@ -556,6 +561,8 @@ function renderChips(){
 }
 function setMode(m){mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   $('#sectlbl').textContent=t('sect_'+m);renderChips();
+  if(curES){try{curES.close()}catch(e){}curES=null}
+  streaming=false;curStop=null;updateStopBtn('hidden');
   srcStat={};srcHidden={};$('#srcStatus').innerHTML=''}
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
 
@@ -597,23 +604,29 @@ function doSearchStream(exact){
   const sources=pickSources();
   if(!sources.length){toast(t('pick_source'),'⚠️');return}
   if(curES){try{curES.close()}catch(e){}curES=null}
-  exactMode=!!exact; streamNotes=[];
+  exactMode=!!exact; streamNotes=[]; streaming=true; lastQuery=q; lastExact=!!exact;
   allProducts=[]; compare=[]; updateCmp();
   initSrcStatus(sources);
   const slow=sources.some(s=>SLOW_SRC.includes(s));
   busy(true,t('searching')+(slow?t('via_browser'):''));
+  updateStopBtn('streaming');
   skeletons();
   let gotAny=false, cleared=false, done=false;
   const url='/api/search_stream?q='+encodeURIComponent(q)+'&sources='+encodeURIComponent(sources.join(','));
-  let es; try{es=new EventSource(url)}catch(e){doSearch(exact);return}
+  let es; try{es=new EventSource(url)}catch(e){streaming=false;doSearch(exact);return}
   curES=es;
-  const finish=()=>{
-    if(done)return; done=true; try{es.close()}catch(e){} curES=null;
+  const finish=(stopped)=>{
+    if(done)return; done=true; streaming=false; curStop=null; try{es.close()}catch(e){} curES=null;
+    if(stopped)Object.keys(srcStat).forEach(s=>{if(srcStat[s].state==='load')srcStat[s].state='';});
+    renderSrcStatus();
     const sum=Object.keys(srcStat).map(s=>`${srcDisplay(s)}: ${srcStat[s].count}`).join(' · ');
     const notes=streamNotes.filter(cleanNote);
-    busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
+    busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(stopped?t('stopped'):'')+(notes.length?'  — '+notes.join(' | '):''));
+    updateStopBtn('done');
+    applyFilters();  // ξαναφτιάχνει το grid χωρίς trailing skeletons
     pushHistory(q); checkAlerts(allProducts);
   };
+  curStop=()=>finish(true);
   es.onmessage=(e)=>{
     let ev; try{ev=JSON.parse(e.data)}catch(_){return}
     if(ev.type==='meta'){ (ev.unsupported||[]).forEach(n=>streamNotes.push(n)); }
@@ -627,16 +640,18 @@ function doSearchStream(exact){
         setSrcStatus(m,useC,ev.note);
       });
       if(ev.note)streamNotes.push(ev.note);
-      if(prods.length){ if(!cleared){$('#grid').innerHTML='';cleared=true;} allProducts=allProducts.concat(prods); gotAny=true; applyFilters(); }
+      if(prods.length){ if(!cleared){$('#grid').innerHTML='';cleared=true;} allProducts=allProducts.concat(prods); gotAny=true; }
+      if(cleared) applyFilters();  // ανανέωση grid + trailing skeletons καθώς μειώνονται οι εκκρεμείς πηγές
     }
-    else if(ev.type==='done'){ if(!gotAny&&!cleared){$('#grid').innerHTML='';} finish(); }
-    else if(ev.type==='error'){ try{es.close()}catch(_){ } curES=null; busy(false,t('error')+(ev.error||'')); }
+    else if(ev.type==='done'){ if(!gotAny&&!cleared){$('#grid').innerHTML='';} finish(false); }
+    else if(ev.type==='error'){ streaming=false;curStop=null;try{es.close()}catch(_){ } curES=null; updateStopBtn('hidden'); busy(false,t('error')+(ev.error||'')); }
   };
   es.onerror=()=>{
     if(done)return;
+    streaming=false; curStop=null;
     try{es.close()}catch(_){ } curES=null;
     if(!gotAny){ doSearch(exact); }  // fallback στο blocking endpoint
-    else finish();
+    else finish(false);
   };
 }
 
@@ -645,6 +660,7 @@ async function doSearch(exact){
   const sources=pickSources();
   if(!sources.length){toast(t('pick_source'),'⚠️');return}
   const slow=sources.some(s=>SLOW_SRC.includes(s));
+  streaming=false; lastQuery=q; lastExact=!!exact; updateStopBtn('hidden');
   busy(true,t('searching')+(slow?t('via_browser'):''));
   skeletons();
   try{
@@ -660,8 +676,9 @@ async function doSearch(exact){
     const sum=Object.entries(d.counts||{}).map(([k,v])=>`${k}: ${v}`).join(' · ');
     const notes=(d.diagnostics||[]).filter(cleanNote);
     busy(false,'✓ '+sum+(exact?t('exact_note'):'')+(notes.length?'  — '+notes.join(' | '):''));
+    updateStopBtn('done');
     pushHistory(q); checkAlerts(prods);
-  }catch(e){busy(false,t('error')+e)}
+  }catch(e){busy(false,t('error')+e);updateStopBtn('hidden')}
 }
 function runSearch(exact){ if(window.EventSource) doSearchStream(exact); else doSearch(exact); }
 $('#go').onclick=()=>runSearch(false);
@@ -669,7 +686,23 @@ $('#gox').onclick=()=>runSearch(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(false)});
 $('#clear').onclick=()=>{$('#q').value='';$('#q').focus()};
 
-function skeletons(){$('#grid').innerHTML=Array(8).fill('<div class="sk"></div>').join('')}
+function skelCards(n){return Array(Math.max(0,n|0)).fill('<div class="sk"></div>').join('')}
+function skeletons(){$('#grid').innerHTML=skelCards(8)}
+function pendingCount(){return Object.values(srcStat).filter(s=>s.state==='load').length}
+
+/* κουμπί Διακοπή / Ανανέωση */
+function updateStopBtn(state){
+  const b=$('#stopBtn'); if(!b)return;
+  if(state==='streaming'){b.style.display='';b.textContent=t('stop_btn');b.dataset.mode='stop';}
+  else if(state==='done'){b.style.display='';b.textContent=t('refresh_btn');b.dataset.mode='refresh';}
+  else{b.style.display='none';b.dataset.mode='';}
+}
+function stopStream(){ if(curStop)curStop(); }
+$('#stopBtn').onclick=()=>{
+  const m=$('#stopBtn').dataset.mode;
+  if(m==='stop')stopStream();
+  else if(m==='refresh'){ if(lastQuery)$('#q').value=lastQuery; runSearch(lastExact); }
+};
 
 /* ---------- filters ---------- */
 $('#toggleFilters').onclick=()=>$('#filters').classList.toggle('show');
@@ -695,7 +728,10 @@ function applyFilters(){
 /* ---------- product grid ---------- */
 function renderProducts(){
   const g=$('#grid');
-  if(!products.length){g.innerHTML=`<div class="empty"><div class="big">🔍</div>${esc(t('no_products'))}<br>${esc(t('try_other'))}</div>`;return}
+  if(!products.length){
+    g.innerHTML=streaming?skelCards(6):`<div class="empty"><div class="big">🔍</div>${esc(t('no_products'))}<br>${esc(t('try_other'))}</div>`;
+    return;
+  }
   // δείκτης φθηνότερου προϊόντος στα τρέχοντα αποτελέσματα (για σήμανση)
   let lowIdx=-1,lowVal=Infinity;
   if(products.length>=2)products.forEach((p,i)=>{const v=parseFloat(p.price_from);if(isFinite(v)&&v>0&&v<lowVal){lowVal=v;lowIdx=i}});
@@ -714,7 +750,7 @@ function renderProducts(){
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
         <div class="meta"><div class="price"><small>${esc(t('from'))}</small>${euro(p.price_from)}</div>
         <div class="tags">${rtag}${cnt}${utag}</div></div></div></div>`;
-  }).join('');
+  }).join('')+(streaming&&pendingCount()>0?skelCards(Math.min(pendingCount()*2,6)):'');
   $$('#grid .card').forEach(c=>c.onclick=()=>openProduct(+c.dataset.i));
   $$('#grid .cmp').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleCompare(products[+b.dataset.i])});
   lazyImages();
