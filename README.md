@@ -1,4 +1,4 @@
-# Σύγκριση Τιμών / Price Compare — v0.26
+# Σύγκριση Τιμών / Price Compare — v0.27
 
 Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
 εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
@@ -39,6 +39,16 @@ docker compose up --build   →   http://localhost:8765
 Σε Windows PC που έχει ήδη τρέξει το `INSTALL.bat`, τρέξε **μία φορά** το
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
+
+### Αλλαγές 0.27 — Ευρωπαϊκές τιμές σούπερ μάρκετ (ενδεικτικές)
+- Κουμπί **«🇪🇺 Ευρ. τιμή»** σε προϊόντα σούπερ μάρκετ: όνομα → barcode
+  (Open Food Facts) → **crowdsourced τιμές ανά χώρα** (Open Prices), σε €, με
+  σύγκριση με την ελληνική τιμή. Σαφώς σημασμένο ως **ενδεικτικό/όχι live**.
+- Διερευνήθηκαν & απορρίφθηκαν (τεκμηριωμένα): posokanei API (μόνο GR, χωρίς
+  barcode/ξένες τιμές), ελληνικό Lidl (online κατάλογος = own-brands/non-food,
+  όχι σούπερ μάρκετ — «coca cola» → σοκολάτες), ξένα portals (apps/χωρίς API,
+  χωρίς κοινό barcode για matching).
+- Περιορισμοί Open Prices: αραιή κάλυψη, κυρίως δημοφιλή επώνυμα & Γαλλία.
 
 ### Αλλαγές 0.26
 - **▶ Βίντεο (YouTube):** κουμπί στη σελίδα προϊόντος με 2-3 ενσωματωμένες

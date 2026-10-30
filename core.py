@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.26"
+VERSION = "0.27"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1926,6 +1926,77 @@ def format_decision(data):
     return "\n".join(lines) if lines else json.dumps(data, ensure_ascii=False, indent=2)
 
 
+
+
+# ===================== Ευρωπαϊκές τιμές (Open Food Facts + Open Prices) ===== #
+# Για προϊόντα σούπερ μάρκετ: όνομα → barcode (OFF text search) → crowdsourced
+# τιμές ανά χώρα (Open Prices). ΕΝΔΕΙΚΤΙΚΕΣ/όχι live (αραιή κάλυψη, κυρίως
+# δημοφιλή επώνυμα· δεν υπάρχει barcode από το posokanei, οπότε κάνουμε text match).
+_OFF_SEARCH = ("https://world.openfoodfacts.org/cgi/search.pl?search_terms={q}"
+               "&search_simple=1&action=process&json=1&page_size=6&sort_by=popularity")
+_OPENPRICES = "https://prices.openfoodfacts.org/api/v1/prices?product_code={code}&size=100"
+_SIZE_RE = re.compile(r"(\d+[.,]?\d*)\s*(kg|gr?|ml|cl|lt?|l)\b", re.IGNORECASE)
+
+
+def _size_token(s):
+    m = _SIZE_RE.search((s or "").lower())
+    return (m.group(1).replace(",", ".") + m.group(2)) if m else ""
+
+
+def off_barcode(name):
+    """Barcode (EAN) για ένα προϊόν μέσω Open Food Facts (text search). Προτιμά
+    αποτέλεσμα με ίδιο μέγεθος συσκευασίας· αλλιώς το πιο δημοφιλές."""
+    try:
+        d = json.loads(http_get(_OFF_SEARCH.format(q=urllib.parse.quote((name or "").strip())),
+                                timeout=12))
+    except Exception:
+        return None
+    want, best = _size_token(name), None
+    for p in (d.get("products") or []):
+        code = str(p.get("code") or "").strip()
+        if not code or len(code) < 8:
+            continue
+        info = {"code": code, "name": (p.get("product_name") or "").strip(),
+                "quantity": (p.get("quantity") or "").strip(),
+                "brands": (p.get("brands") or "").strip()}
+        if best is None:
+            best = info
+        if want and _size_token(info["quantity"]) == want:
+            return info
+    return best
+
+
+def open_prices(barcode):
+    """Τελευταία τιμή ανά χώρα (μόνο €) από το Open Prices για ένα barcode."""
+    try:
+        d = json.loads(http_get(_OPENPRICES.format(code=barcode), timeout=12))
+    except Exception:
+        return []
+    latest = {}
+    for it in (d.get("items") or []):
+        if (it.get("currency") or "") != "EUR" or it.get("price") is None:
+            continue
+        loc = it.get("location") or {}
+        cc = (loc.get("osm_address_country_code") or "").upper()
+        if not cc:
+            continue
+        date = it.get("date") or ""
+        if cc not in latest or date > latest[cc]["date"]:
+            latest[cc] = {"country": cc, "price": to_float(it.get("price")),
+                          "currency": "EUR", "date": date}
+    rows = [v for v in latest.values() if v["price"] is not None]
+    rows.sort(key=lambda r: r["price"])
+    return rows
+
+
+def eu_reference_prices(name):
+    """Ευρωπαϊκές (ενδεικτικές) τιμές για προϊόν σούπερ μάρκετ, με barcode match."""
+    m = off_barcode(name)
+    if not m:
+        return {"matched": None, "prices": []}
+    return {"matched": {"barcode": m["code"], "name": m["name"],
+                        "quantity": m.get("quantity", "")},
+            "prices": open_prices(m["code"])}
 
 
 # ============================ YouTube (παρουσιάσεις) ============================ #

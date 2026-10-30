@@ -100,6 +100,17 @@ def api_bp_image():
     return jsonify({"image": core.bestprice_image(pid)})
 
 
+@app.get("/api/eu_price")
+def api_eu_price():
+    q = (request.args.get("q") or "").strip()
+    if not q:
+        return jsonify({"matched": None, "prices": []})
+    try:
+        return jsonify(core.eu_reference_prices(q))
+    except Exception as exc:
+        return jsonify({"matched": None, "prices": [], "error": str(exc)})
+
+
 @app.get("/api/videos")
 def api_videos():
     q = (request.args.get("q") or "").strip()

@@ -312,6 +312,7 @@ a{color:var(--cy);text-decoration:none}
       <option value="rating" data-i18n="sort_rating"></option>
       <option value="shop" data-i18n="sort_shop"></option>
     </select>
+    <button class="btn ghost sm" id="shEu" data-i18n="sh_euprice" style="display:none"></button>
     <button class="btn ghost sm" id="shVideo" data-i18n="sh_video"></button>
     <button class="btn ghost sm" id="shHist" data-i18n="sh_hist"></button>
     <button class="btn ghost sm" id="shDec" data-i18n="sh_dec"></button>
@@ -363,6 +364,7 @@ const T={
     sort_price:'Τιμή ↑',sort_total:'Συνολικό κόστος ↑',sort_rating:'Αξιολόγηση ↓',sort_shop:'Κατάστημα Α–Ω',
     sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',sh_video:'▶ Βίντεο',
     video_title:'📺 Παρουσιάσεις βίντεο',video_none:'Δεν βρέθηκαν βίντεο.',video_search:'Αναζήτηση στο YouTube',video_loading:'Φόρτωση βίντεο…',
+    sh_euprice:'🇪🇺 Ευρ. τιμή',eu_title:'🇪🇺 Ευρωπαϊκές τιμές (ενδεικτικές)',eu_greece:'Ελλάδα (εδώ)',eu_matched:'Αντιστοιχίστηκε με',eu_none:'Δεν βρέθηκαν ευρωπαϊκά δεδομένα για αυτό το προϊόν.',eu_note:'Πηγή: Open Prices (crowdsourced) — ενδεικτικές τιμές, όχι live. Κυρίως δημοφιλή επώνυμα.',eu_loading:'Αναζήτηση…',
     cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
     cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
@@ -397,6 +399,7 @@ const T={
     sort_price:'Price ↑',sort_total:'Total cost ↑',sort_rating:'Rating ↓',sort_shop:'Store A–Z',
     sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',sh_video:'▶ Videos',
     video_title:'📺 Video reviews',video_none:'No videos found.',video_search:'Search on YouTube',video_loading:'Loading videos…',
+    sh_euprice:'🇪🇺 EU price',eu_title:'🇪🇺 European prices (indicative)',eu_greece:'Greece (here)',eu_matched:'Matched with',eu_none:'No European data found for this product.',eu_note:'Source: Open Prices (crowdsourced) — indicative, not live. Mostly popular branded products.',eu_loading:'Searching…',
     cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
     cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
@@ -422,6 +425,7 @@ if(LANG!=='en'&&LANG!=='el')LANG='el';
 function t(k){const v=(T[LANG]||T.el)[k];return v==null?k:v}
 /* display name for a source (backend value stays canonical) */
 function srcFlag(s){ return (s==='eBay'||s==='Amazon')?'🇪🇺 ':''; }
+function ccFlag(cc){ if(!cc||cc.length!==2)return ''; try{return String.fromCodePoint(...[...cc.toUpperCase()].map(c=>127397+c.charCodeAt(0)));}catch(e){return ''} }
 function srcDisplay(label){
   if(label==='Σούπερ Μάρκετ')return t('src_super');
   if(label==='Πολιτεία')return t('src_politeia');
@@ -614,6 +618,7 @@ async function openProduct(i){
   const p=products[i]; curProduct=p; offers=[];
   $('#shTitle').textContent=p.title||'—';
   $('#shSub').textContent=srcDisplay(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
+  $('#shEu').style.display=(p.source==='Σούπερ Μάρκετ')?'':'none';
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
   openSheet(true);
@@ -684,6 +689,25 @@ $('#shVideo').onclick=async()=>{
     <div style="font:500 12px Inter;color:var(--mut)">${esc(v.channel||'')}${v.duration?' · '+esc(v.duration):''}</div></div>`).join('')
     +`<div style="text-align:right"><a href="${yurl}" target="_blank" rel="noopener" style="font:600 12px Inter">${esc(t('video_search'))} ↗</a></div>`;
   dialogHTML(t('video_title'),html);
+};
+$('#shEu').onclick=async()=>{
+  if(!curProduct)return; const q=curProduct.title||''; if(!q)return;
+  const btn=$('#shEu'); const prev=btn.textContent; btn.disabled=true; btn.textContent=t('eu_loading');
+  let d={matched:null,prices:[]};
+  try{d=await api('/api/eu_price?q='+encodeURIComponent(q));}catch(e){}
+  btn.disabled=false; btn.textContent=prev;
+  const prices=(d&&d.prices)||[];
+  const grP=parseFloat(curProduct.price_from);
+  let rows=`<div class="offer best"><div class="shop">🇬🇷 ${esc(t('eu_greece'))}</div><div class="op">${euro(grP)}</div></div>`;
+  if(prices.length){
+    rows+=prices.map(p=>`<div class="offer"><div class="shop">${ccFlag(p.country)} ${esc(p.country)}<small>${esc(p.date||'')}</small></div><div class="op">${euro(p.price)}</div></div>`).join('');
+  }
+  const matched=d&&d.matched;
+  const head=matched?`<div style="color:var(--mut);font:500 12px Inter;margin-bottom:10px">${esc(t('eu_matched'))}: <b style="color:var(--ink)">${esc(matched.name||'')}${matched.quantity?' · '+esc(matched.quantity):''}</b> <span style="color:var(--mut2)">(${esc(matched.barcode||'')})</span></div>`:'';
+  const body=head
+    +(prices.length?`<div class="sh-list">${rows}</div>`:`<div class="empty"><div class="big">🇪🇺</div>${esc(t('eu_none'))}</div>`)
+    +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(t('eu_note'))}</div>`;
+  dialogHTML(t('eu_title'),body);
 };
 $('#shAlert').onclick=()=>{if(!curProduct)return;const cur=parseFloat(curProduct.price_from)||'';
   const v=prompt(t('alert_prompt')(curProduct.title),cur);
