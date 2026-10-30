@@ -230,6 +230,34 @@ a{color:var(--cy);text-decoration:none}
 .langsw button{border:none;background:none;color:var(--mut);font:700 12px Inter;cursor:pointer;padding:5px 11px;border-radius:999px;transition:.2s}
 .langsw button.on{background:var(--grad);color:#06101f}
 @media(max-width:560px){.seg{margin-left:0;width:100%;justify-content:center}.logo{width:100%}.langsw{margin-left:auto}}
+
+/* theme toggle button */
+.iconbtn{margin-left:10px;width:38px;height:38px;border-radius:999px;border:1px solid var(--stroke2);
+  background:rgba(11,18,34,.6);color:var(--ink);font-size:16px;cursor:pointer;transition:.2s;display:grid;place-items:center}
+.iconbtn:hover{border-color:var(--cy)}
+
+/* card «lowest price in results» badge + unit-price tag */
+.card .lowb{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);z-index:3;font:700 9px Inter;letter-spacing:.08em;
+  background:var(--gr);color:#06101f;padding:4px 9px;border-radius:999px;box-shadow:0 6px 16px -6px rgba(52,211,153,.8);white-space:nowrap}
+.tag.unit{color:var(--cy);border-color:rgba(34,211,238,.4)}
+.offer .save{display:block;font:600 10px Inter;color:var(--gr);text-align:right;margin-top:1px}
+
+/* ---------- light theme ---------- */
+:root[data-theme="light"]{
+  --bg:#eef1f8;--bg2:#ffffff;--panel:rgba(12,20,45,.045);--panel2:rgba(12,20,45,.08);
+  --stroke:rgba(12,20,45,.12);--stroke2:rgba(12,20,45,.22);
+  --ink:#0b1222;--mut:#4b5a79;--mut2:#8795b1;
+  --glow:0 0 0 1px rgba(124,92,255,.25),0 10px 40px -12px rgba(34,211,238,.3);
+}
+:root[data-theme="light"] .card .thumb,:root[data-theme="light"] .sheet .sh-img,:root[data-theme="light"] .ci-img{background-color:#f1f4fa}
+:root[data-theme="light"] .field input,:root[data-theme="light"] .urlf input,:root[data-theme="light"] .filters .mini,:root[data-theme="light"] .sh-act select{background:#f6f8fc}
+:root[data-theme="light"] .iconbtn,:root[data-theme="light"] .langsw{background:rgba(12,20,45,.05)}
+:root[data-theme="light"] .bgfx{background:
+  radial-gradient(60vw 60vw at 12% -5%,rgba(124,92,255,.12),transparent 60%),
+  radial-gradient(55vw 55vw at 105% 10%,rgba(34,211,238,.12),transparent 60%),
+  radial-gradient(60vw 60vw at 50% 120%,rgba(217,70,239,.08),transparent 60%),var(--bg);}
+:root[data-theme="light"] .grid{background-image:linear-gradient(rgba(12,20,45,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(12,20,45,.05) 1px,transparent 1px)}
+:root[data-theme="light"] .toast{background:rgba(255,255,255,.97)}
 </style>
 </head>
 <body>
@@ -252,6 +280,7 @@ a{color:var(--cy);text-decoration:none}
     <div class="langsw" id="langsw">
       <button data-l="el">ΕΛ</button><button data-l="en">EN</button>
     </div>
+    <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
   <div class="hero">
@@ -346,6 +375,26 @@ const euro=v=>{v=parseFloat(v);return isFinite(v)?'€'+v.toFixed(2):'—'};
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
 function exactMatch(t,q){const nt=norm(t),tk=norm(q).split(/\s+/).filter(Boolean);return tk.length>0&&tk.every(x=>nt.includes(x))}
+/* τιμή ανά μονάδα: βγάζει μέγεθος/μονάδα από τον τίτλο → €/kg, €/lt, €/τεμ (με υποστήριξη π.χ. 6x1.5L) */
+function unitPrice(title,price){
+  const pr=parseFloat(price); if(!isFinite(pr)||pr<=0)return null;
+  const s=String(title||'').toLowerCase().replace(/,/g,'.');
+  let mult=1; const mx=s.match(/(\d+)\s*[x×]\s*(?=\d)/); if(mx){const k=parseInt(mx[1],10); if(k>=2&&k<=99)mult=k;}
+  const m=s.match(/(\d+(?:\.\d+)?)\s*(kgr|kg|κιλά|κιλό|κιλ|gr|γραμμάρια|γραμμ|γραμ|γρ|g|ml|cl|lt|lit|λίτρα|λίτρο|λίτ|l|λ|τεμάχια|τεμάχιο|τεμ|pcs|pack)(?![\p{L}])/u);
+  if(!m)return null;
+  const val=parseFloat(m[1]), u=m[2]; if(!(val>0))return null;
+  let base,label;
+  if(/^(kgr|kg|κιλ)/.test(u)){base=val;label='€/kg';}
+  else if(/^(gr|γρ|γραμ|g)/.test(u)){base=val/1000;label='€/kg';}
+  else if(u==='ml'){base=val/1000;label='€/lt';}
+  else if(u==='cl'){base=val/100;label='€/lt';}
+  else if(/^(lt|lit|λίτ|λιτ|l|λ)/.test(u)){base=val;label='€/lt';}
+  else if(/^(τεμ|pcs|pack)/.test(u)){base=val;label='€/'+t('unit_pc');}
+  else return null;
+  const amount=base*mult; if(!(amount>0))return null;
+  const per=pr/amount; if(!isFinite(per)||per<=0||per>1e5)return null;
+  return '€'+(per>=10?per.toFixed(1):per.toFixed(2))+label.slice(1);
+}
 
 /* ---------- i18n (ΕΛ / EN) ---------- */
 const T={
@@ -368,6 +417,7 @@ const T={
     eu_countries:'χώρες',eu_min:'ελάχ.',eu_avg:'μ.ό.',eu_max:'μέγ.',eu_below:'κάτω από τον ευρ. μέσο όρο',eu_above:'πάνω από τον ευρ. μέσο όρο',eu_at:'στον ευρ. μέσο όρο',
     cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
     cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
+    lowest:'💶 ΧΑΜΗΛΟΤΕΡΗ',lowest_t:'Χαμηλότερη τιμή στα τρέχοντα αποτελέσματα',save_word:'κερδίζεις',unit_pc:'τεμ',theme_t:'Εναλλαγή θέματος (φωτεινό/σκοτεινό)',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
     exact_note:'  · ακριβές όνομα',error:'Σφάλμα: ',
     no_products:'Δεν βρέθηκαν προϊόντα.',try_other:'Δοκίμασε άλλη διατύπωση ή πηγή.',
@@ -404,6 +454,7 @@ const T={
     eu_countries:'countries',eu_min:'min',eu_avg:'avg',eu_max:'max',eu_below:'below the EU average',eu_above:'above the EU average',eu_at:'at the EU average',
     cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
     cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
+    lowest:'💶 LOWEST',lowest_t:'Lowest price in the current results',save_word:'you save',unit_pc:'pc',theme_t:'Toggle theme (light/dark)',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
     exact_note:'  · exact name',error:'Error: ',
     no_products:'No products found.',try_other:'Try different wording or another source.',
@@ -446,12 +497,13 @@ function setLang(l){
   document.title=(l==='en'?'Price Compare':'Σύγκριση Τιμών')+' · '+(l==='en'?'Σύγκριση Τιμών':'Price Compare');
   $$('#langsw button').forEach(b=>b.classList.toggle('on',b.dataset.l===l));
   applyStatic();
+  {const tb=$('#themeBtn');if(tb)tb.title=t('theme_t');}
   $('#sectlbl').textContent=t('sect_'+mode);
   if(!$('#bar').classList.contains('on'))$('#statusTxt').textContent=t('status_ready');
   renderChips();
   if(allProducts.length)renderProducts();
   if($('#sheet').classList.contains('on')){
-    if(curProduct)$('#shSub').textContent=srcDisplay(curProduct.source||'')+(curProduct.offer_count?` · ${curProduct.offer_count} ${t('stores_word')}`:'');
+    if(curProduct)$('#shSub').textContent=shSubText(curProduct);
     if(offers.length)renderOffers();
   }
   if($('#cart').classList.contains('on'))renderCart(); else cartCount();
@@ -547,18 +599,24 @@ function applyFilters(){
 function renderProducts(){
   const g=$('#grid');
   if(!products.length){g.innerHTML=`<div class="empty"><div class="big">🔍</div>${esc(t('no_products'))}<br>${esc(t('try_other'))}</div>`;return}
+  // δείκτης φθηνότερου προϊόντος στα τρέχοντα αποτελέσματα (για σήμανση)
+  let lowIdx=-1,lowVal=Infinity;
+  if(products.length>=2)products.forEach((p,i)=>{const v=parseFloat(p.price_from);if(isFinite(v)&&v>0&&v<lowVal){lowVal=v;lowIdx=i}});
   g.innerHTML=products.map((p,i)=>{
     const img=p.image?`background-image:url('${esc(p.image)}')`:'';
     const r=parseFloat(p.rating);
     const rtag=(isFinite(r)&&r>0&&r<=5)?`<span class="tag star">★ ${r.toFixed(1)}</span>`:'';
     const cnt=p.offer_count?`<span class="tag">${p.offer_count} ${mode==='super'?t('markets'):t('stores_short')}</span>`:'';
+    const up=(mode==='super')?unitPrice(p.title,p.price_from):null;
+    const utag=up?`<span class="tag unit">${esc(up)}</span>`:'';
+    const low=(i===lowIdx)?`<span class="lowb" title="${esc(t('lowest_t'))}">${esc(t('lowest'))}</span>`:'';
     const sel=compare.includes(p);
     return `<div class="card${sel?' sel':''}" style="animation-delay:${i*40}ms" data-i="${i}">
       <button class="cmp" data-i="${i}" title="${esc(t('add_compare_t'))}">⇄</button>
-      <div class="thumb" style="${img}">${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(srcDisplay(p.source||''))}</span></div>
+      <div class="thumb" style="${img}">${low}${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(srcDisplay(p.source||''))}</span></div>
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
         <div class="meta"><div class="price"><small>${esc(t('from'))}</small>${euro(p.price_from)}</div>
-        <div class="tags">${rtag}${cnt}</div></div></div></div>`;
+        <div class="tags">${rtag}${cnt}${utag}</div></div></div></div>`;
   }).join('');
   $$('#grid .card').forEach(c=>c.onclick=()=>openProduct(+c.dataset.i));
   $$('#grid .cmp').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleCompare(products[+b.dataset.i])});
@@ -626,10 +684,15 @@ $('#shImg').onclick=()=>{
   document.addEventListener('keydown',function esc2(e){if(e.key==='Escape'){o.remove();document.removeEventListener('keydown',esc2)}});
   document.body.appendChild(o);
 };
+function shSubText(p){
+  let s=srcDisplay(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
+  if(p.source==='Σούπερ Μάρκετ'){const up=unitPrice(p.title,p.price_from);if(up)s+=' · '+up;}
+  return s;
+}
 async function openProduct(i){
   const p=products[i]; curProduct=p; offers=[];
   $('#shTitle').textContent=p.title||'—';
-  $('#shSub').textContent=srcDisplay(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
+  $('#shSub').textContent=shSubText(p);
   $('#shEu').style.display=(p.source==='Σούπερ Μάρκετ')?'':'none';
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
   $('#shImg').style.cursor=p.image?'zoom-in':'default';
@@ -663,6 +726,10 @@ function renderOffers(){
   offers=o;
   const L=$('#shList');
   if(!o.length){L.innerHTML=`<div class="empty"><div class="big">🏷️</div>${esc(t('no_stores'))}</div>`;return}
+  // εύρος τιμών για «κερδίζεις» στην φθηνότερη προσφορά
+  const ips=o.map(x=>parseFloat(x.item_price)).filter(v=>isFinite(v)&&v>0);
+  const minP=ips.length?Math.min(...ips):null, maxP=ips.length?Math.max(...ips):null;
+  let saveShown=false;
   L.innerHTML=o.map((x,i)=>{
     const r=parseFloat(x.merchant_rating);
     const rc=x.merchant_rating_count?` (${x.merchant_rating_count})`:'';
@@ -670,9 +737,15 @@ function renderOffers(){
     const extra=[x.availability,x.delivery_estimate,rat].filter(Boolean).join(' · ');
     const name=x.offer_url?`<a href="${esc(x.offer_url)}" target="_blank" rel="noopener">${esc(x.merchant_name||'—')}</a>`:esc(x.merchant_name||'—');
     const tot=(typeof x.total_price==='number')?`<small>${esc(t('total_short'))}${euro(x.total_price)}</small>`:'';
+    const ip=parseFloat(x.item_price);
+    let save='';
+    if(!saveShown&&minP!=null&&maxP>minP&&isFinite(ip)&&ip===minP){
+      saveShown=true;
+      save=`<span class="save">${esc(t('save_word'))} ${euro(maxP-minP)} (−${Math.round((1-minP/maxP)*100)}%)</span>`;
+    }
     return `<div class="offer${i===0?' best':''}"${i===0?` data-best="${esc(t('best'))}"`:''} style="animation-delay:${i*35}ms">
       <div class="shop">${name}<small>${esc(extra)||'&nbsp;'}</small></div>
-      <div class="op">${euro(x.item_price)}${tot}</div>
+      <div class="op">${euro(x.item_price)}${tot}${save}</div>
       <button class="add" data-i="${i}" title="${esc(t('to_cart_t'))}">＋</button></div>`;
   }).join('');
   $$('#shList .add').forEach(b=>b.onclick=()=>addToCart(offers[+b.dataset.i]));
@@ -826,7 +899,37 @@ function toast(msg,ic){const t=document.createElement('div');t.className='toast'
 /* ---------- language toggle ---------- */
 $('#langsw').onclick=e=>{const b=e.target.closest('button');if(b)setLang(b.dataset.l)};
 
+/* ---------- theme toggle (φωτεινό / σκοτεινό) ---------- */
+let THEME=load('gpc_theme',null)||'dark';
+function setTheme(th){
+  THEME=(th==='light')?'light':'dark';
+  document.documentElement.setAttribute('data-theme',THEME);
+  save('gpc_theme',THEME);
+  const b=$('#themeBtn'); if(b){b.textContent=THEME==='light'?'☀':'🌙'; b.title=t('theme_t');}
+}
+$('#themeBtn').onclick=()=>setTheme(THEME==='light'?'dark':'light');
+
+/* ---------- keyboard shortcuts ---------- */
+document.addEventListener('keydown',e=>{
+  const tgt=e.target, tag=((tgt&&tgt.tagName)||'').toLowerCase();
+  const typing=tag==='input'||tag==='textarea'||tag==='select'||(tgt&&tgt.isContentEditable);
+  if(e.key==='Escape'){
+    const ov=[...document.querySelectorAll('.scrim.on')].filter(x=>!x.id);
+    if(ov.length){ov[ov.length-1].remove();return}
+    if($('#cart').classList.contains('on')){openCart(false);return}
+    if($('#sheet').classList.contains('on')){openSheet(false);return}
+    return;
+  }
+  if(typing)return;
+  if(e.key==='/'){e.preventDefault();$('#q').focus();$('#q').select();return}
+  if((e.key==='ArrowRight'||e.key==='ArrowLeft')&&$('#sheet').classList.contains('on')&&curProduct){
+    const idx=products.indexOf(curProduct);
+    if(idx>=0){const ni=idx+(e.key==='ArrowRight'?1:-1); if(ni>=0&&ni<products.length){e.preventDefault();openProduct(ni);}}
+  }
+});
+
 /* ---------- init ---------- */
+setTheme(THEME);
 setLang(LANG);
 setMode(mode);
 renderHistory();cartCount();updateCmp();
