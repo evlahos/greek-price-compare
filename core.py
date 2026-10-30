@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.27"
+VERSION = "0.28"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -658,19 +658,20 @@ def _browser_exe_candidates():
     return res
 
 
-# Προτιμώμενος browser (default: Opera). Παρακάμπτεται με env var GPC_BROWSER
-# (π.χ. GPC_BROWSER=edge). Κενό = αυτόματη σειρά.
-PREFERRED_BROWSER = os.environ.get("GPC_BROWSER", "opera").strip().lower()
+# Προτιμώμενος browser για τη ΜΗΧΑΝΗ scraping (αόρατος/headless). ΟΧΙ Opera: η
+# Opera ΔΕΝ οδηγείται headless από το Playwright — ανοίγει ορατό παράθυρο και δεν
+# ελέγχεται (έσπαγε Skroutz/eBay κ.λπ.). Default = αυτόματο (bundled Chromium →
+# Edge/Chrome channel). Μπορείς να εξαναγκάσεις με GPC_BROWSER (π.χ. edge).
+PREFERRED_BROWSER = os.environ.get("GPC_BROWSER", "").strip().lower()
 
 
 def launch_chromium(pw):
-    """Εκκινεί headless Chromium-based browser. Σειρά προσπαθειών:
-    0) ο προτιμώμενος browser (PREFERRED_BROWSER, default Opera) από τη διαδρομή του,
-    1) το Chromium του Playwright (αν κατέβηκε),
-    2) Edge/Chrome μέσω channel,
-    3) οποιοσδήποτε άλλος Chromium-based browser (Edge/Chrome/Brave/Vivaldi/Opera/Chromium).
-    Έτσι, αν ο προτιμώμενος δεν οδηγείται από το Playwright, πέφτει αυτόματα
-    σε Edge/Chrome — δεν μένεις ποτέ χωρίς αποτέλεσμα."""
+    """Εκκινεί ΑΟΡΑΤΟ (headless) Chromium-based browser. Σειρά:
+    0) ρητός GPC_BROWSER (αν οριστεί),
+    1) το Chromium του Playwright (αν κατέβηκε) — πιο αξιόπιστο headless,
+    2) Edge/Chrome μέσω channel (πάντα headless στα Windows),
+    3) άλλοι Chromium-based (Edge/Chrome/Brave/Vivaldi/Chromium) — ΟΧΙ Opera.
+    Η Opera αποκλείεται γιατί δεν τρέχει headless (ανοίγει ορατό παράθυρο)."""
     attempts = []
     cands = _browser_exe_candidates()
     pref = [c for c in cands if PREFERRED_BROWSER and PREFERRED_BROWSER in c.lower()]
@@ -692,9 +693,10 @@ def launch_chromium(pw):
             return pw.chromium.launch(headless=True, channel=channel)
         except Exception as exc:
             attempts.append(f"{channel}: {str(exc)[:70]}")
-    # 3) Υπόλοιποι Chromium-based browsers
+    # 3) Υπόλοιποι Chromium-based browsers — ΕΚΤΟΣ Opera (ανοίγει ορατό παράθυρο
+    #    και δεν οδηγείται headless· μπαίνει μόνο αν ζητηθεί ρητά με GPC_BROWSER).
     for exe in cands:
-        if exe in pref:
+        if exe in pref or "opera" in exe.lower():
             continue
         try:
             return pw.chromium.launch(headless=True, executable_path=exe)
@@ -735,16 +737,29 @@ def playwright_search_all(labels, query):
                     page = ctx.new_page()
                     try:
                         page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                        try:
-                            page.wait_for_function(wait_js, timeout=9000)
-                        except Exception:
-                            page.wait_for_timeout(2500)
+                        # Το Skroutz έχει Cloudflare ("Just a moment") — δίνουμε χρόνο
+                        # να λυθεί η JS πρόκληση και ξαναδοκιμάζουμε μία φορά με reload.
+                        for attempt in range(2):
+                            try:
+                                page.wait_for_function(wait_js, timeout=12000)
+                                break
+                            except Exception:
+                                page.wait_for_timeout(3500)
+                                if attempt == 0:
+                                    try:
+                                        page.reload(wait_until="domcontentloaded", timeout=30000)
+                                    except Exception:
+                                        pass
                         html = page.content()
                         base = page.url
                         r = parse_search_listing(html, base, label, limit=20)
                         rows.extend(r)
-                        diags.append(f"{label}: {len(r)} προϊόντα" if r
-                                     else f"{label}: δεν βρέθηκαν προϊόντα (ίσως άλλαξε η σελίδα)")
+                        if r:
+                            diags.append(f"{label}: {len(r)} προϊόντα")
+                        else:
+                            cf = any(s in html for s in ("Just a moment", "cf-browser-verification",
+                                                         "challenge-platform", "Attention Required"))
+                            diags.append(f"{label}: {'μπλοκαρίστηκε από Cloudflare — δοκίμασε ξανά' if cf else 'δεν βρέθηκαν προϊόντα (ίσως άλλαξε η σελίδα)'}")
                     except Exception as exc:
                         diags.append(f"{label}: {str(exc)[:80]}")
                     finally:
@@ -1461,10 +1476,14 @@ _EPAPOUTSIA_PARSE_JS = r"""
     const price = pe ? num(pe.textContent) : null;
     let name = (a.getAttribute('title') || a.getAttribute('aria-label') || (img && img.getAttribute('alt')) || '').trim();
     if (name.length < 2) continue;
-    let image = '';
-    const pic = c.querySelector('picture source[srcset], img[src], img[data-src]');
-    if (pic) { const ss = pic.getAttribute('srcset');
-      image = ss ? ss.split(',')[0].trim().split(' ')[0] : (pic.getAttribute('src') || pic.getAttribute('data-src') || ''); }
+    // ΠΡΟΣΟΧΗ: το eobuwie CDN URL περιέχει κόμματα (…SG_M.jpg,webp)/…) — ΔΕΝ
+    // κάνουμε split(',') στο srcset (έσπαγε το URL). Προτιμάμε το πλήρες img src.
+    let image = img ? (img.getAttribute('src') || img.getAttribute('data-src') || '') : '';
+    if (!image || /^data:|placeholder|blank\.|\.svg([?#]|$)/i.test(image)) {
+      const srcEl = c.querySelector('picture source[srcset], source[srcset]');
+      if (srcEl) { const ss = srcEl.getAttribute('srcset') || '';
+        image = (ss.split(/,\s+(?=https?:\/\/)/)[0] || '').trim().replace(/\s+\d+(?:w|x)$/, ''); }
+    }
     seen.add(url);
     items.push({ title:name.slice(0,160), price, image, url, rating:null, availability:'', currency:'EUR' });
   }

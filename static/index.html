@@ -614,12 +614,23 @@ function openCompare(){
 /* ---------- detail sheet ---------- */
 function openSheet(on){$('#sheet').classList.toggle('on',on);$('#scrim').classList.toggle('on',on)}
 $('#shBack').onclick=()=>openSheet(false); $('#scrim').onclick=()=>openSheet(false);
+/* zoom εικόνας προϊόντος (κλικ → μεγέθυνση, κλικ ξανά → κλείσιμο) */
+$('#shImg').onclick=()=>{
+  const im=curProduct&&curProduct.image; if(!im)return;
+  const o=document.createElement('div'); o.className='scrim on';
+  o.style.cssText='z-index:90;display:grid;place-items:center;padding:24px;cursor:zoom-out;background:rgba(2,5,12,.92)';
+  o.innerHTML=`<img src="${esc(im)}" alt="" style="max-width:95vw;max-height:92vh;border-radius:14px;box-shadow:0 30px 90px -20px rgba(0,0,0,.85)">`;
+  o.onclick=()=>o.remove();
+  document.addEventListener('keydown',function esc2(e){if(e.key==='Escape'){o.remove();document.removeEventListener('keydown',esc2)}});
+  document.body.appendChild(o);
+};
 async function openProduct(i){
   const p=products[i]; curProduct=p; offers=[];
   $('#shTitle').textContent=p.title||'—';
   $('#shSub').textContent=srcDisplay(p.source||'')+(p.offer_count?` · ${p.offer_count} ${t('stores_word')}`:'');
   $('#shEu').style.display=(p.source==='Σούπερ Μάρκετ')?'':'none';
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
+  $('#shImg').style.cursor=p.image?'zoom-in':'default';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
   openSheet(true);
   try{

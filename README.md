@@ -1,4 +1,4 @@
-# Σύγκριση Τιμών / Price Compare — v0.27
+# Σύγκριση Τιμών / Price Compare — v0.28
 
 Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
 εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
@@ -39,6 +39,16 @@ docker compose up --build   →   http://localhost:8765
 Σε Windows PC που έχει ήδη τρέξει το `INSTALL.bat`, τρέξε **μία φορά** το
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
+
+### Αλλαγές 0.28 — Διορθώσεις από παρατηρήσεις
+- **Browser engine (Opera εκτός):** η Opera ΔΕΝ τρέχει headless (άνοιγε ορατό
+  παράθυρο & δεν ελεγχόταν — έσπαγε Skroutz/eBay). Default πλέον bundled Chromium
+  → Edge/Chrome channel (αόρατα, αξιόπιστα). *(#1,2,3,5,6)*
+- **Skroutz/Cloudflare:** το Skroutz μπήκε πίσω από Cloudflare — περισσότερος
+  χρόνος + reload + σαφές μήνυμα όταν μπλοκάρει. Best-effort· οι BestPrice/Public
+  καλύπτουν το ίδιο έδαφος. *(#2,3,6)*
+- **ePapoutsia εικόνα:** διόρθωση truncation (το CDN URL έχει κόμματα). *(#4)*
+- **Zoom εικόνας:** κλικ στη φωτογραφία προϊόντος → μεγέθυνση (ESC/κλικ κλείνει). *(#7)*
 
 ### Αλλαγές 0.27 — Ευρωπαϊκές τιμές σούπερ μάρκετ (ενδεικτικές)
 - Κουμπί **«🇪🇺 Ευρ. τιμή»** σε προϊόντα σούπερ μάρκετ: όνομα → barcode
