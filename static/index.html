@@ -365,6 +365,7 @@ const T={
     sh_hist:'📈 Ιστορικό',sh_dec:'💡 Σύσταση',sh_alert:'🔔 Alert τιμής',sh_video:'▶ Βίντεο',
     video_title:'📺 Παρουσιάσεις βίντεο',video_none:'Δεν βρέθηκαν βίντεο.',video_search:'Αναζήτηση στο YouTube',video_loading:'Φόρτωση βίντεο…',
     sh_euprice:'🇪🇺 Ευρ. τιμή',eu_title:'🇪🇺 Ευρωπαϊκές τιμές (ενδεικτικές)',eu_greece:'Ελλάδα (εδώ)',eu_matched:'Αντιστοιχίστηκε με',eu_none:'Δεν βρέθηκαν ευρωπαϊκά δεδομένα για αυτό το προϊόν.',eu_note:'Πηγή: Open Prices (crowdsourced) — ενδεικτικές τιμές, όχι live. Κυρίως δημοφιλή επώνυμα.',eu_loading:'Αναζήτηση…',
+    eu_countries:'χώρες',eu_min:'ελάχ.',eu_avg:'μ.ό.',eu_max:'μέγ.',eu_below:'κάτω από τον ευρ. μέσο όρο',eu_above:'πάνω από τον ευρ. μέσο όρο',eu_at:'στον ευρ. μέσο όρο',
     cmp_btn:'⇄ Σύγκριση',cart_btn:'🛒 Καλάθι',cart_h:'🛒 Καλάθι',total:'Σύνολο',
     cart_csv:'Εξαγωγή CSV',cart_clear:'Καθάρισμα',cart_empty:'Άδειο καλάθι',csv_file:'kalathi.csv',best:'ΚΑΛΥΤΕΡΗ',
     pick_source:'Διάλεξε τουλάχιστον μία πηγή',searching:'⏳ Αναζήτηση…',via_browser:' (μέσω browser, ίσως αργήσει)',
@@ -400,6 +401,7 @@ const T={
     sh_hist:'📈 History',sh_dec:'💡 Advice',sh_alert:'🔔 Price alert',sh_video:'▶ Videos',
     video_title:'📺 Video reviews',video_none:'No videos found.',video_search:'Search on YouTube',video_loading:'Loading videos…',
     sh_euprice:'🇪🇺 EU price',eu_title:'🇪🇺 European prices (indicative)',eu_greece:'Greece (here)',eu_matched:'Matched with',eu_none:'No European data found for this product.',eu_note:'Source: Open Prices (crowdsourced) — indicative, not live. Mostly popular branded products.',eu_loading:'Searching…',
+    eu_countries:'countries',eu_min:'min',eu_avg:'avg',eu_max:'max',eu_below:'below the EU average',eu_above:'above the EU average',eu_at:'at the EU average',
     cmp_btn:'⇄ Compare',cart_btn:'🛒 Cart',cart_h:'🛒 Cart',total:'Total',
     cart_csv:'Export CSV',cart_clear:'Clear',cart_empty:'Empty cart',csv_file:'cart.csv',best:'BEST',
     pick_source:'Pick at least one source',searching:'⏳ Searching…',via_browser:' (via browser, may be slow)',
@@ -715,7 +717,27 @@ $('#shEu').onclick=async()=>{
   }
   const matched=d&&d.matched;
   const head=matched?`<div style="color:var(--mut);font:500 12px Inter;margin-bottom:10px">${esc(t('eu_matched'))}: <b style="color:var(--ink)">${esc(matched.name||'')}${matched.quantity?' · '+esc(matched.quantity):''}</b> <span style="color:var(--mut2)">(${esc(matched.barcode||'')})</span></div>`:'';
-  const body=head
+  // Σύνοψη: πλήθος χωρών, ελάχιστη, μέσος όρος, μέγιστη + σύγκριση ΕΛ↔ευρ. μέσο όρο
+  let summary='';
+  const vals=prices.map(p=>p.price).filter(x=>typeof x==='number'&&isFinite(x));
+  if(vals.length){
+    const mn=Math.min(...vals), mx=Math.max(...vals), avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+    const chip=(lbl,val)=>`<div style="flex:1;min-width:90px;text-align:center;padding:8px 6px;background:var(--panel2,rgba(255,255,255,.03));border:1px solid var(--line,rgba(255,255,255,.08));border-radius:10px"><div style="color:var(--mut2);font:600 10px Inter;letter-spacing:.3px;text-transform:uppercase">${lbl}</div><div style="color:var(--ink);font:700 15px Inter;margin-top:3px">${val}</div></div>`;
+    let cmp='';
+    if(isFinite(grP)&&grP>0){
+      const diff=(grP-avg)/avg*100;
+      if(diff<=-1) cmp=`<div style="margin-top:10px;color:#34d399;font:600 12px Inter">🇬🇷 ${euro(grP)} — ${Math.abs(diff).toFixed(0)}% ${esc(t('eu_below'))} ✓</div>`;
+      else if(diff>=1) cmp=`<div style="margin-top:10px;color:#f87171;font:600 12px Inter">🇬🇷 ${euro(grP)} — ${diff.toFixed(0)}% ${esc(t('eu_above'))}</div>`;
+      else cmp=`<div style="margin-top:10px;color:var(--mut);font:600 12px Inter">🇬🇷 ${euro(grP)} — ${esc(t('eu_at'))}</div>`;
+    }
+    summary=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">`
+      +chip(`🌍 ${esc(t('eu_countries'))}`, String(vals.length))
+      +chip(esc(t('eu_min')), euro(mn))
+      +chip(esc(t('eu_avg')), euro(avg))
+      +chip(esc(t('eu_max')), euro(mx))
+      +`</div>`+cmp;
+  }
+  const body=head+summary
     +(prices.length?`<div class="sh-list">${rows}</div>`:`<div class="empty"><div class="big">🇪🇺</div>${esc(t('eu_none'))}</div>`)
     +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(t('eu_note'))}</div>`;
   dialogHTML(t('eu_title'),body);
