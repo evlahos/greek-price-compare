@@ -145,6 +145,14 @@ def api_fuel():
                         "fuels": [], "error": str(exc)})
 
 
+@app.get("/api/fuel_penalties")
+def api_fuel_penalties():
+    try:
+        return jsonify(core.fuel_penalties())
+    except Exception as exc:
+        return jsonify({"items": [], "error": str(exc)})
+
+
 @app.get("/api/videos")
 def api_videos():
     q = (request.args.get("q") or "").strip()

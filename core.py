@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.34"
+VERSION = "0.35"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -729,7 +729,7 @@ def playwright_search_all(labels, query):
     try:
         with sync_playwright() as pw:
             try:
-                browser = launch_chromium(pw)
+                browser = launch_chromium(pw, extra_args=_STEALTH_ARGS)
             except Exception as exc:
                 msg = str(exc)
                 if "Executable doesn't exist" in msg or "playwright install" in msg:
@@ -737,7 +737,17 @@ def playwright_search_all(labels, query):
                 return [], [f"Playwright: σφάλμα εκκίνησης — {msg[:100]}"]
             try:
                 ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          timezone_id="Europe/Athens",
                                           viewport={"width": 1366, "height": 900})
+                # stealth: κρύβουμε δείκτες αυτοματισμού (βοηθά με Cloudflare στο Skroutz)
+                try:
+                    ctx.add_init_script(
+                        "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+                        "window.chrome={runtime:{}};"
+                        "Object.defineProperty(navigator,'languages',{get:()=>['el-GR','el','en']});"
+                        "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});")
+                except Exception:
+                    pass
                 for label, tmpl in targets:
                     url = tmpl.format(q=q)
                     page = ctx.new_page()
@@ -1314,6 +1324,42 @@ PHARM24_LABEL = "Pharm24"
 _PHARM24_SEARCH_URL = ("https://www.pharm24.gr/index.php?main_page="
                        "advanced_search_result&search_in_description=1&keyword={q}")
 
+# Χάρτης url/όνομα → {rating,count} από ΟΛΟ το JSON-LD της σελίδας. Έτσι γεμίζουν
+# βαθμολογίες και σε πηγές με site-specific parser (DOM) που δεν τις διαβάζει.
+_JSONLD_RATING_MAP_JS = r"""
+() => {
+  const map = {};
+  const one = v => Array.isArray(v) ? v[0] : v;
+  const norm = u => { try { return new URL(u, location.href).href.split('?')[0]; } catch(e){ return (u||'').split('?')[0]; } };
+  const add = p => {
+    if (!p || typeof p !== 'object') return;
+    const ty = p['@type']; const types = Array.isArray(ty) ? ty : [ty];
+    if (!types.includes('Product')) return;
+    const agg = one(p.aggregateRating); if (!agg) return;
+    const rv = parseFloat(String(agg.ratingValue).replace(',', '.'));
+    if (!isFinite(rv)) return;
+    const cnt = agg.reviewCount || agg.ratingCount || null;
+    let u = p.url || (p.offers && one(p.offers).url) || '';
+    if (!u && p.mainEntityOfPage) u = typeof p.mainEntityOfPage === 'string' ? p.mainEntityOfPage : (p.mainEntityOfPage['@id'] || '');
+    if (u) map[norm(u)] = { rating: rv, count: cnt };
+    if (p.name) map['name:' + String(p.name).trim().toLowerCase().slice(0, 80)] = { rating: rv, count: cnt };
+  };
+  const walk = n => {
+    if (!n) return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    if (typeof n !== 'object') return;
+    add(n);
+    if (n.itemListElement) walk(n.itemListElement);
+    if (n.item) walk(n.item);
+    if (n['@graph']) walk(n['@graph']);
+  };
+  document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+    try { walk(JSON.parse(s.textContent)); } catch(e){}
+  });
+  return map;
+};
+"""
+
 _JSONLD_ITEMLIST_JS = r"""
 () => {
   const items = [];
@@ -1326,12 +1372,14 @@ _JSONLD_ITEMLIST_JS = r"""
     else if (/OutOfStock|SoldOut|Discontinued|BackOrder/i.test(avail)) avail = 'Εξαντλημένο';
     else avail = '';
     const rat = p.aggregateRating ? p.aggregateRating.ratingValue : null;
+    const rcnt = p.aggregateRating ? (p.aggregateRating.reviewCount || p.aggregateRating.ratingCount || null) : null;
     items.push({
       title: (p.name || '').toString().slice(0, 160),
       price: off.price != null ? off.price : (off.lowPrice != null ? off.lowPrice : null),
       image: one(p.image) || '',
       url: p.url || '',
       rating: rat,
+      rating_count: rcnt,
       availability: avail,
       currency: off.priceCurrency || 'EUR'
     });
@@ -1430,6 +1478,7 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
         return [], f"{label}: {PLAYWRIGHT_HINT}"
     url = search_url.format(q=urllib.parse.quote(query))
     raw = None
+    rmap = {}
     try:
         with sync_playwright() as pw:
             try:
@@ -1448,6 +1497,10 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
                     except Exception:
                         pass
                     raw = page.evaluate(parse_js or _JSONLD_ITEMLIST_JS)
+                    try:
+                        rmap = page.evaluate(_JSONLD_RATING_MAP_JS) or {}
+                    except Exception:
+                        rmap = {}
                 finally:
                     try:
                         page.close()
@@ -1469,21 +1522,33 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
         seen.add(key)
         price = to_float(it.get("price"))
         rating = to_float(it.get("rating"))
+        rcount = it.get("rating_count")
+        # Συμπλήρωση βαθμολογίας από το JSON-LD της σελίδας (αν ο parser δεν την έδωσε)
+        if not rating and rmap:
+            info = rmap.get((purl or "").split("?")[0]) or rmap.get("name:" + title.strip().lower()[:80])
+            if info:
+                rating = to_float(info.get("rating"))
+                rcount = rcount or info.get("count")
         avail = it.get("availability") or ""
         rows.append({
             "source": label, "product_id": "",
             "title": title, "image": it.get("image") or "",
             "price_from": price, "offer_count": 1,
             "rating": rating if rating else None,
+            "rating_count": rcount or None,
             "product_url": purl,
             "_direct": {"source": label, "merchant_name": label,
                         "price": price, "url": purl, "availability": avail,
                         "rating": rating if rating else None,
+                        "rating_count": rcount or None,
                         "currency": it.get("currency") or "EUR"}})
         if len(rows) >= limit:
             break
-    return rows, (f"{label}: {len(rows)} προϊόντα" if rows
-                  else f"{label}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)")
+    if not rows:
+        return rows, f"{label}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)"
+    if len(rows) >= limit:
+        return rows, f"{label}: {len(rows)}+ — πολλά αποτελέσματα, στένεψε την αναζήτηση"
+    return rows, f"{label}: {len(rows)} προϊόντα"
 
 
 def pharm24_search(query, limit=25):
@@ -1858,6 +1923,83 @@ def fuel_prices():
             "fuels": _FUEL_TYPES}
     _FUEL_CACHE["data"] = data
     _FUEL_CACHE["ts"] = now
+    return data
+
+
+# ── ΑΑΔΕ: πρόσφατες σφραγίσεις/νοθείες πρατηρίων (ενημερωτικό feed) ────────────
+# Αδόμητα δελτία τύπου· φιλτράρουμε όσα αφορούν καύσιμα. ΔΕΝ είναι ιστορικό ανά
+# συγκεκριμένο πρατήριο (τα ονόματα συνήθως δεν δημοσιεύονται) — αφορά περιοχές/
+# υποθέσεις, με σύνδεσμο στο επίσημο δελτίο για ανάγνωση.
+_AADE_LIST = "https://www.aade.gr/deltia-typoy-anakoinoseis"
+_AADE_ITEM_RE = re.compile(
+    r'href="(/deltia-typoy-anakoinoseis/[^"]*deltio-typoy-[^"]*)"[^>]*>\s*([\s\S]*?)</a>')
+# Accent-insensitive (ο τόνος μετακινείται στις κλίσεις: Πρατηρίου/πρατήρια κ.λπ.)
+_PEN_FUEL_RE = re.compile(r"πρατηρ|βενζιν|νοθ|καυσιμ", re.IGNORECASE)
+_PEN_ENF_RE = re.compile(r"σφραγ|νοθ|λουκετο|παρεμβ|παραβ|προστιμ|λαθρεμπ|παρανομ", re.IGNORECASE)
+# Αποκλεισμός διοικητικών/θετικών ανακοινώσεων (επιδοτήσεις, προθεσμίες κ.λπ.)
+_PEN_EXCL_RE = re.compile(r"επιχορηγ|voucher|προθεσμ|καταβολ|επιστροφ|δικαιολογητ|ενισχυσ", re.IGNORECASE)
+_PEN_CACHE = {"ts": 0, "data": None}
+_PEN_TTL = 21600  # 6 ώρες
+
+
+def _strip_accents(s):
+    import unicodedata
+    return "".join(c for c in unicodedata.normalize("NFD", s or "")
+                   if unicodedata.category(c) != "Mn")
+
+
+def _aade_list_page(n):
+    url = _AADE_LIST + (f"?page={n}" if n else "")
+    try:
+        html = http_get(url, timeout=15)
+    except Exception:
+        return []
+    out = []
+    for m in _AADE_ITEM_RE.finditer(html):
+        text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", m.group(2))).strip()
+        out.append((m.group(1), text))
+    return out
+
+
+def fuel_penalties(pages=22):
+    """Feed πρόσφατων σφραγίσεων/νοθειών πρατηρίων από τα δελτία τύπου της ΑΑΔΕ.
+    Ενημερωτικό (ανά περιοχή/υπόθεση), ΟΧΙ ιστορικό ανά συγκεκριμένο πρατήριο."""
+    from concurrent.futures import ThreadPoolExecutor
+    now = time.time()
+    if _PEN_CACHE["data"] and (now - _PEN_CACHE["ts"]) < _PEN_TTL:
+        return _PEN_CACHE["data"]
+    collected = []
+    try:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            for res in ex.map(_aade_list_page, range(0, pages)):
+                collected.extend(res)
+    except Exception:
+        pass
+    seen, out = set(), []
+    for href, text in collected:
+        if href in seen:
+            continue
+        nt = _strip_accents(text)
+        if not (_PEN_FUEL_RE.search(nt) and _PEN_ENF_RE.search(nt)):
+            continue
+        if _PEN_EXCL_RE.search(nt):
+            continue
+        seen.add(href)
+        dm = re.search(r"(\d{2}/\d{2}/\d{4})", text)
+        title = re.sub(r"^Δελτίο Τύπου\s*\d{2}/\d{2}/\d{4}\s*", "", text).strip()
+        url = href if href.startswith("http") else "https://www.aade.gr" + href
+        out.append({"date": dm.group(1) if dm else "", "title": title[:200], "url": url})
+
+    def _dkey(x):
+        try:
+            d, m, y = x["date"].split("/")
+            return (int(y), int(m), int(d))
+        except Exception:
+            return (0, 0, 0)
+    out.sort(key=_dkey, reverse=True)
+    data = {"items": out[:25], "source": "ΑΑΔΕ — Δελτία Τύπου"}
+    _PEN_CACHE["data"] = data
+    _PEN_CACHE["ts"] = now
     return data
 
 

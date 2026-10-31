@@ -274,6 +274,13 @@ a{color:var(--cy);text-decoration:none}
 .ftbl td.min{color:var(--gr);font-weight:800}
 .ftbl td.max{color:var(--rd)}
 .fuel-note{color:var(--mut2);font:500 11px Inter;margin-top:12px}
+.pen-list{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.pen-item{display:flex;align-items:center;gap:12px;padding:11px 13px;border:1px solid var(--stroke);border-radius:12px;
+  background:var(--panel);text-decoration:none;transition:.18s}
+.pen-item:hover{border-color:rgba(251,113,133,.5);background:var(--panel2)}
+.pen-item .pd{flex:none;color:var(--am);font:700 12px Inter;white-space:nowrap;min-width:84px}
+.pen-item .pt{flex:1;color:var(--ink);font:500 13px/1.4 Inter}
+.pen-item .pa{flex:none;color:var(--mut2);font-size:14px}
 
 /* ---------- light theme ---------- */
 :root[data-theme="light"]{
@@ -445,6 +452,8 @@ const T={
     fuel_nomos:'Νομός',fuel_stations:'πρατήρια',fuel_loading:'⛽ Φόρτωση δελτίου τιμών…',fuel_none:'Δεν βρέθηκαν δεδομένα καυσίμων.',
     fuel_updated:'Στοιχεία',fuel_by_nomos:'Μέσες τιμές ανά Νομό',fuel_filter_ph:'Φίλτρο νομού… π.χ. Σερρών',
     fuel_src:'Πηγή: Παρατηρητήριο Τιμών Υγρών Καυσίμων — Υπ. Ανάπτυξης (fuelprices.gr). Μέσες τιμές λιανικής, €/λτ με ΦΠΑ. 🟢 φθηνότερος / 🔴 ακριβότερος νομός ανά καύσιμο.',
+    pen_title:'Πρόσφατες σφραγίσεις / παραβάσεις πρατηρίων',pen_loading:'Φόρτωση ανακοινώσεων ΑΑΔΕ…',pen_none:'Δεν βρέθηκαν πρόσφατες σχετικές ανακοινώσεις.',
+    pen_note:'Πηγή: ΑΑΔΕ — Δελτία Τύπου. Ενημερωτικό (ανά περιοχή/υπόθεση), ΟΧΙ ιστορικό ανά συγκεκριμένο πρατήριο — τα ονόματα συνήθως δεν δημοσιεύονται. Κλικ για το επίσημο δελτίο.',
     q_ph:'Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB',clear_t:'Καθάρισμα',postal_ph:'Τ.Κ.',
     go:'Αναζήτηση',gox:'Ακριβές όνομα',gox_t:'Μόνο προϊόντα που περιέχουν ακριβώς αυτό',
     sources_lbl:'Πηγές',url_ph:'…ή επικόλλησε σύνδεσμο προϊόντος από eshop',fetch:'Άντληση',
@@ -487,6 +496,8 @@ const T={
     fuel_nomos:'Prefecture',fuel_stations:'stations',fuel_loading:'⛽ Loading price bulletin…',fuel_none:'No fuel data found.',
     fuel_updated:'Data',fuel_by_nomos:'Average prices by Prefecture',fuel_filter_ph:'Filter prefecture… e.g. Serres',
     fuel_src:'Source: Greek Fuel Prices Observatory — Ministry of Development (fuelprices.gr). Average retail, €/lt incl. VAT. 🟢 cheapest / 🔴 priciest prefecture per fuel.',
+    pen_title:'Recent fuel-station seals / violations',pen_loading:'Loading AADE announcements…',pen_none:'No recent related announcements found.',
+    pen_note:'Source: AADE press releases. Informational (by area/case), NOT a per-station history — names are usually not published. Click for the official announcement.',
     q_ph:'What are you looking for? e.g. Samsung 990 PRO 1TB',clear_t:'Clear',postal_ph:'Postal',
     go:'Search',gox:'Exact name',gox_t:'Only products that contain exactly this',
     sources_lbl:'Sources',url_ph:'…or paste a product link from an eshop',fetch:'Fetch',
@@ -792,8 +803,26 @@ function renderFuel(){
   g.innerHTML=`<div class="fuel-tiles">${tiles}</div>
     <div class="fuel-head"><b>${esc(t('fuel_by_nomos'))} <span style="color:var(--mut2);font-weight:600">(${rows.length})</span></b></div>
     <div class="fuel-scroll"><table class="ftbl"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>
-    <div class="fuel-note">${esc(t('fuel_src'))}</div>`;
+    <div class="fuel-note">${esc(t('fuel_src'))}</div>
+    <div id="fuelPen"></div>`;
   g.querySelectorAll('.ftbl th').forEach(h=>h.onclick=()=>{const key=h.dataset.k;if(fuelSort.key===key)fuelSort.dir*=-1;else fuelSort={key,dir:1};renderFuel();});
+  loadFuelPenalties();
+}
+let _penData=null;
+async function loadFuelPenalties(){
+  const box=document.getElementById('fuelPen'); if(!box)return;
+  if(_penData){renderPenalties();return;}   // in-memory cache (ο server έχει δικό του 6h cache)
+  box.innerHTML=`<div class="fuel-note" style="margin-top:22px">${esc(t('pen_loading'))}</div>`;
+  try{ _penData=await api('/api/fuel_penalties'); }catch(e){ _penData={items:[]}; }
+  renderPenalties();
+}
+function renderPenalties(){
+  const box=document.getElementById('fuelPen'); if(!box)return;
+  const items=(_penData&&_penData.items)||[];
+  if(!items.length){ box.innerHTML=`<div class="fuel-note" style="margin-top:22px">${esc(t('pen_none'))}</div>`; return; }
+  box.innerHTML=`<div class="fuel-head" style="margin-top:24px">⚠️ ${esc(t('pen_title'))} <span style="color:var(--mut2);font-weight:600">(${items.length})</span></div>`
+    +`<div class="pen-list">`+items.map(it=>`<a class="pen-item" href="${esc(it.url)}" target="_blank" rel="noopener"><span class="pd">${esc(it.date||'')}</span><span class="pt">${esc(it.title||'')}</span><span class="pa">↗</span></a>`).join('')+`</div>`
+    +`<div class="fuel-note">${esc(t('pen_note'))}</div>`;
 }
 
 /* ---------- filters ---------- */
@@ -830,7 +859,8 @@ function renderProducts(){
   g.innerHTML=products.map((p,i)=>{
     const img=p.image?`background-image:url('${esc(p.image)}')`:'';
     const r=parseFloat(p.rating);
-    const rtag=(isFinite(r)&&r>0&&r<=5)?`<span class="tag star">★ ${r.toFixed(1)}</span>`:'';
+    const rc=parseInt(p.rating_count,10);
+    const rtag=(isFinite(r)&&r>0&&r<=5)?`<span class="tag star">★ ${r.toFixed(1)}${isFinite(rc)&&rc>0?' ('+rc+')':''}</span>`:'';
     const cnt=p.offer_count?`<span class="tag">${p.offer_count} ${mode==='super'?t('markets'):t('stores_short')}</span>`:'';
     const up=(mode==='super')?unitPrice(p.title,p.price_from):null;
     const utag=up?`<span class="tag unit">${esc(up)}</span>`:'';
