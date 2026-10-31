@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.33"
+VERSION = "0.34"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1731,6 +1731,134 @@ def amazon_search(query, limit=25):
         AMAZON_LABEL, _AMAZON_SEARCH_URL, query, limit,
         wait_selector='div[data-component-type="s-search-result"]',
         parse_js=_AMAZON_PARSE_JS, settle_ms=1200)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⛽ Καύσιμα — Παρατηρητήριο Τιμών Υγρών Καυσίμων (Υπ. Ανάπτυξης, fuelprices.gr).
+# Καθημερινά PDF δελτία: μέσες τιμές λιανικής ανά Νομό + πανελλαδικά (σταθμισμένα).
+# ─────────────────────────────────────────────────────────────────────────────
+_FUEL_BASE = "https://www.fuelprices.gr/files/deltia/"
+_FUEL_NOMOS_TMPL = "IMERISIO_DELTIO_ANA_NOMO_{dd}_{mm}_{yyyy}.pdf"
+_FUEL_PAN_TMPL = "IMERISIO_DELTIO_PANELLINIO_{dd}_{mm}_{yyyy}.pdf"
+_FUEL_LINE_RE = re.compile(
+    r"^(ΝΟΜΟΣ\s+[Α-ΩΆΈΉΊΌΎΏΪΫ'\.\s]+?|ΠΑΝΕΛΛΗΝΙΟΣ[Α-ΩΆΈΉΊΌΎΏ\.\s]+?)"
+    r"\s+(\d,\d{3})\s+(\d,\d{3})\s+(\d,\d{3})\s+(\d,\d{3})\s+(\d,\d{3})\s*$")
+_FUEL_TYPES = [("u95", "Αμόλυβδη 95"), ("u100", "Αμόλυβδη 100"),
+               ("diesel", "Diesel Κίνησης"), ("autogas", "Υγραέριο (Autogas)"),
+               ("heating", "Πετρέλαιο Θέρμανσης")]
+_FUEL_CACHE = {"ts": 0, "data": None}
+_FUEL_TTL = 3600  # 1 ώρα
+
+
+def _fuel_num(s):
+    try:
+        return float(str(s).strip().replace(".", "").replace(",", "."))
+    except Exception:
+        return None
+
+
+def _fuel_fetch_pdf(tmpl, d):
+    """Κατεβάζει το PDF δελτίο για ημ/νία d (δοκιμάζει zero-padded & μη)."""
+    seen = set()
+    for dd, mm in ((f"{d.day:02d}", f"{d.month:02d}"), (str(d.day), str(d.month))):
+        url = _FUEL_BASE + tmpl.format(dd=dd, mm=mm, yyyy=d.year)
+        if url in seen:
+            continue
+        seen.add(url)
+        try:
+            data = http_bytes(url, timeout=20)
+            if data and data[:4] == b"%PDF":
+                return data
+        except Exception:
+            continue
+    return None
+
+
+def fuel_prices():
+    """Επιστρέφει {date, national[], prefectures[], fuels[]} από το πιο πρόσφατο
+    δημοσιευμένο δελτίο (ψάχνει έως 10 ημέρες πίσω). Με cache 1 ώρας."""
+    import io
+    import datetime
+
+    now = time.time()
+    if _FUEL_CACHE["data"] and (now - _FUEL_CACHE["ts"]) < _FUEL_TTL:
+        return _FUEL_CACHE["data"]
+
+    try:
+        import pdfplumber
+    except Exception:
+        return {"date": None, "national": [], "prefectures": [],
+                "fuels": _FUEL_TYPES, "error": "Λείπει το pdfplumber."}
+
+    nomos_pdf = pan_pdf = used = None
+    today = datetime.date.today()
+    for back in range(0, 11):
+        d = today - datetime.timedelta(days=back)
+        nomos_pdf = _fuel_fetch_pdf(_FUEL_NOMOS_TMPL, d)
+        if nomos_pdf:
+            used = d
+            pan_pdf = _fuel_fetch_pdf(_FUEL_PAN_TMPL, d)
+            break
+    if not nomos_pdf:
+        return {"date": None, "national": [], "prefectures": [],
+                "fuels": _FUEL_TYPES, "error": "Δεν βρέθηκε πρόσφατο δελτίο."}
+
+    # Ανά νομό (+ γραμμή πανελλήνιου σταθμισμένου Μ.Ο.)
+    prefectures, weighted = [], None
+    try:
+        with pdfplumber.open(io.BytesIO(nomos_pdf)) as pdf:
+            full = "\n".join((pg.extract_text() or "") for pg in pdf.pages)
+    except Exception as exc:
+        return {"date": None, "national": [], "prefectures": [],
+                "fuels": _FUEL_TYPES, "error": f"PDF: {str(exc)[:80]}"}
+    for ln in full.split("\n"):
+        m = _FUEL_LINE_RE.match(ln.strip())
+        if not m:
+            continue
+        name = re.sub(r"\s+", " ", m.group(1)).strip()
+        rec = {"nomos": name.replace("ΝΟΜΟΣ ", "").strip(),
+               "u95": _fuel_num(m.group(2)), "u100": _fuel_num(m.group(3)),
+               "diesel": _fuel_num(m.group(4)), "autogas": _fuel_num(m.group(5)),
+               "heating": _fuel_num(m.group(6))}
+        if name.startswith("ΠΑΝΕΛΛΗΝ"):
+            weighted = rec
+        else:
+            prefectures.append(rec)
+
+    # Πανελλαδικά (αρ. πρατηρίων + σταθμισμένη μέση τιμή) + ημερομηνία
+    national, date_text = [], None
+    ptxt = ""
+    if pan_pdf:
+        try:
+            with pdfplumber.open(io.BytesIO(pan_pdf)) as pdf:
+                ptxt = pdf.pages[0].extract_text() or ""
+        except Exception:
+            ptxt = ""
+    label_src = [("u95", "Αμόλυβδη 95"), ("u100", "Αμόλυβδη 100"),
+                 ("diesel", "Diesel Κίνησης"), ("autogas", "Υγραέριο κίνησης"),
+                 ("heating", "Diesel Θέρμανσης")]
+    for (key, _lbl), (_, src) in zip(_FUEL_TYPES, label_src):
+        m = re.search(re.escape(src) + r"[^\n]*?([\d\.]+)\s+(\d,\d{3})", ptxt)
+        if m:
+            national.append({"key": key, "label": dict(_FUEL_TYPES)[key],
+                             "stations": int(m.group(1).replace(".", "")),
+                             "price": _fuel_num(m.group(2))})
+    dm = re.search(r"για\s+την\s*\n?\s*[Α-Ωα-ωΆ-ώ]+,\s*(\d{1,2})\s+([Α-Ωα-ωΆ-ώ]+)\s+(\d{4})", ptxt)
+    if dm:
+        date_text = f"{dm.group(1)} {dm.group(2)} {dm.group(3)}"
+    # fallback πανελλαδικών από τη γραμμή Μ.Ο. του δελτίου νομών
+    if not national and weighted:
+        for key, lbl in _FUEL_TYPES:
+            national.append({"key": key, "label": lbl, "stations": None,
+                             "price": weighted.get(key)})
+    if not date_text and used:
+        date_text = used.strftime("%d/%m/%Y")
+
+    data = {"date": date_text, "national": national, "prefectures": prefectures,
+            "fuels": _FUEL_TYPES}
+    _FUEL_CACHE["data"] = data
+    _FUEL_CACHE["ts"] = now
+    return data
 
 
 # ── Μητρώο απευθείας πηγών: label → συνάρτηση (query) → (rows, diag). ──────────

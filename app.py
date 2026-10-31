@@ -136,6 +136,15 @@ def api_eu_price():
         return jsonify({"matched": None, "prices": [], "error": str(exc)})
 
 
+@app.get("/api/fuel")
+def api_fuel():
+    try:
+        return jsonify(core.fuel_prices())
+    except Exception as exc:
+        return jsonify({"date": None, "national": [], "prefectures": [],
+                        "fuels": [], "error": str(exc)})
+
+
 @app.get("/api/videos")
 def api_videos():
     q = (request.args.get("q") or "").strip()

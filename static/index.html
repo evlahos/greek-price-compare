@@ -255,6 +255,26 @@ a{color:var(--cy);text-decoration:none}
 .sstat.off{opacity:.42}.sstat.off b{text-decoration:line-through}
 @keyframes pulse{50%{opacity:.35}}
 
+/* ⛽ Καύσιμα */
+.grid-p.fuelmode{display:block}
+.fuel-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 2px 18px}
+.ftile{border:1px solid var(--stroke);background:linear-gradient(180deg,var(--panel2),var(--panel));border-radius:14px;padding:12px 14px}
+.ftile .fl{color:var(--mut);font:600 12px Inter}
+.ftile .fv{font:800 21px Orbitron;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;margin-top:5px}
+.ftile .fs{color:var(--mut2);font:500 11px Inter;margin-top:3px}
+.fuel-head{display:flex;align-items:baseline;gap:8px;margin:0 2px 10px;font:700 14px Inter}
+.fuel-scroll{overflow:auto;max-height:62vh;border:1px solid var(--stroke);border-radius:14px}
+.ftbl{width:100%;border-collapse:collapse;font:500 13px Inter}
+.ftbl th{position:sticky;top:0;z-index:1;background:var(--bg2);text-align:right;color:var(--mut);font:700 12px Inter;padding:10px 12px;border-bottom:1px solid var(--stroke2);cursor:pointer;white-space:nowrap;user-select:none}
+.ftbl th.nm{text-align:left}
+.ftbl th:hover{color:var(--ink)}
+.ftbl td{padding:8px 12px;border-bottom:1px solid var(--stroke);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ftbl td.nm{text-align:left;font-weight:600;color:var(--ink)}
+.ftbl tbody tr:hover td{background:var(--panel)}
+.ftbl td.min{color:var(--gr);font-weight:800}
+.ftbl td.max{color:var(--rd)}
+.fuel-note{color:var(--mut2);font:500 11px Inter;margin-top:12px}
+
 /* ---------- light theme ---------- */
 :root[data-theme="light"]{
   --bg:#eef1f8;--bg2:#ffffff;--panel:rgba(12,20,45,.045);--panel2:rgba(12,20,45,.08);
@@ -288,6 +308,7 @@ a{color:var(--cy);text-decoration:none}
       <button data-m="home" data-i18n="cat_home"></button>
       <button data-m="sports" data-i18n="cat_sports"></button>
       <button data-m="toys" data-i18n="cat_toys"></button>
+      <button data-m="fuel" data-i18n="cat_fuel"></button>
       <button data-m="all" data-i18n="cat_all"></button>
     </div>
     <div class="langsw" id="langsw">
@@ -417,9 +438,13 @@ const T={
     appName:'ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b>',
     cat_tech:'🖥 Τεχνολογία',cat_super:'🛒 Σούπερ Μάρκετ',cat_books:'📚 Βιβλία',
     cat_health:'💊 Υγεία & Ομορφιά',cat_fashion:'👕 Μόδα',cat_home:'🏠 Σπίτι',
-    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_all:'✨ Γενική',
+    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_fuel:'⛽ Καύσιμα',cat_all:'✨ Γενική',
     sect_tech:'Προϊόντα',sect_super:'Σούπερ Μάρκετ',sect_books:'Βιβλία',sect_health:'Υγεία & Ομορφιά',
-    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_all:'Γενική αναζήτηση',
+    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_all:'Γενική αναζήτηση',
+    fuel_u95:'Αμόλυβδη 95',fuel_u100:'Αμόλυβδη 100',fuel_diesel:'Diesel Κίνησης',fuel_autogas:'Υγραέριο (Autogas)',fuel_heating:'Πετρέλαιο Θέρμανσης',
+    fuel_nomos:'Νομός',fuel_stations:'πρατήρια',fuel_loading:'⛽ Φόρτωση δελτίου τιμών…',fuel_none:'Δεν βρέθηκαν δεδομένα καυσίμων.',
+    fuel_updated:'Στοιχεία',fuel_by_nomos:'Μέσες τιμές ανά Νομό',fuel_filter_ph:'Φίλτρο νομού… π.χ. Σερρών',
+    fuel_src:'Πηγή: Παρατηρητήριο Τιμών Υγρών Καυσίμων — Υπ. Ανάπτυξης (fuelprices.gr). Μέσες τιμές λιανικής, €/λτ με ΦΠΑ. 🟢 φθηνότερος / 🔴 ακριβότερος νομός ανά καύσιμο.',
     q_ph:'Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB',clear_t:'Καθάρισμα',postal_ph:'Τ.Κ.',
     go:'Αναζήτηση',gox:'Ακριβές όνομα',gox_t:'Μόνο προϊόντα που περιέχουν ακριβώς αυτό',
     sources_lbl:'Πηγές',url_ph:'…ή επικόλλησε σύνδεσμο προϊόντος από eshop',fetch:'Άντληση',
@@ -455,9 +480,13 @@ const T={
     appName:'PRICE <b>COMPARE</b>',
     cat_tech:'🖥 Technology',cat_super:'🛒 Supermarket',cat_books:'📚 Books',
     cat_health:'💊 Health & Beauty',cat_fashion:'👕 Fashion',cat_home:'🏠 Home',
-    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_all:'✨ General',
+    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_fuel:'⛽ Fuel',cat_all:'✨ General',
     sect_tech:'Products',sect_super:'Supermarket',sect_books:'Books',sect_health:'Health & Beauty',
-    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_all:'General search',
+    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_all:'General search',
+    fuel_u95:'Unleaded 95',fuel_u100:'Unleaded 100',fuel_diesel:'Diesel',fuel_autogas:'Autogas (LPG)',fuel_heating:'Heating Oil',
+    fuel_nomos:'Prefecture',fuel_stations:'stations',fuel_loading:'⛽ Loading price bulletin…',fuel_none:'No fuel data found.',
+    fuel_updated:'Data',fuel_by_nomos:'Average prices by Prefecture',fuel_filter_ph:'Filter prefecture… e.g. Serres',
+    fuel_src:'Source: Greek Fuel Prices Observatory — Ministry of Development (fuelprices.gr). Average retail, €/lt incl. VAT. 🟢 cheapest / 🔴 priciest prefecture per fuel.',
     q_ph:'What are you looking for? e.g. Samsung 990 PRO 1TB',clear_t:'Clear',postal_ph:'Postal',
     go:'Search',gox:'Exact name',gox_t:'Only products that contain exactly this',
     sources_lbl:'Sources',url_ph:'…or paste a product link from an eshop',fetch:'Fetch',
@@ -537,8 +566,11 @@ const SOURCES={
   home:[['BestPrice','src_bp_ho'],['Skroutz','src_sk_ho'],['Leroy Merlin','src_lm_ho']],
   sports:[['BestPrice','src_bp_sp'],['Skroutz','src_sk_sp'],['Cosmos Sport','src_cs_sp']],
   toys:[['BestPrice','src_bp_t'],['Skroutz','src_sk_t'],['Moustakas','src_mo_t']],
-  all:[['BestPrice','src_bp_a'],['Skroutz','src_sk_a'],['Public','src_pu_a']]
+  all:[['BestPrice','src_bp_a'],['Skroutz','src_sk_a'],['Public','src_pu_a']],
+  fuel:[]
 };
+const FUEL_KEYS=['u95','u100','diesel','autogas','heating'];
+let fuelData=null, fuelSort={key:'nomos',dir:1}, fuelLoading=false, _qStash=null;
 let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compare=[];
 let cart=load('gpc_cart',[]), history=load('gpc_hist',[]), alerts=load('gpc_alerts',[]);
 let srcState={};
@@ -559,11 +591,25 @@ function renderChips(){
     box.appendChild(c);
   });
 }
-function setMode(m){mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
-  $('#sectlbl').textContent=t('sect_'+m);renderChips();
+function setMode(m){
+  const wasFuel=mode==='fuel';
+  mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('#sectlbl').textContent=t('sect_'+m);
   if(curES){try{curES.close()}catch(e){}curES=null}
   streaming=false;curStop=null;updateStopBtn('hidden');
-  srcStat={};srcHidden={};$('#srcStatus').innerHTML=''}
+  srcStat={};srcHidden={};$('#srcStatus').innerHTML='';
+  if(m==='fuel'){
+    if(!wasFuel){_qStash=$('#q').value;$('#q').value='';}
+    $('#q').placeholder=t('fuel_filter_ph');
+    $('#chips').style.display='none';
+    loadFuel();
+  } else {
+    if(wasFuel){ if(_qStash!=null){$('#q').value=_qStash;_qStash=null;} const g=$('#grid');g.classList.remove('fuelmode');g.innerHTML=''; $('#statusTxt').textContent=t('status_ready'); }
+    $('#q').placeholder=t('q_ph');
+    $('#chips').style.display='';
+    renderChips();
+  }
+}
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
 
 /* ---------- search ---------- */
@@ -680,14 +726,18 @@ async function doSearch(exact){
     pushHistory(q); checkAlerts(prods);
   }catch(e){busy(false,t('error')+e);updateStopBtn('hidden')}
 }
-function runSearch(exact){ if(window.EventSource) doSearchStream(exact); else doSearch(exact); }
+function runSearch(exact){
+  if(mode==='fuel'){ loadFuel(); return; }
+  if(window.EventSource) doSearchStream(exact); else doSearch(exact);
+}
 $('#go').onclick=()=>runSearch(false);
 $('#gox').onclick=()=>runSearch(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(false)});
-$('#clear').onclick=()=>{$('#q').value='';$('#q').focus()};
+$('#q').addEventListener('input',()=>{if(mode==='fuel')renderFuel()});
+$('#clear').onclick=()=>{$('#q').value='';$('#q').focus();if(mode==='fuel')renderFuel()};
 
 function skelCards(n){return Array(Math.max(0,n|0)).fill('<div class="sk"></div>').join('')}
-function skeletons(){$('#grid').innerHTML=skelCards(8)}
+function skeletons(){const g=$('#grid');g.classList.remove('fuelmode');g.innerHTML=skelCards(8)}
 function pendingCount(){return Object.values(srcStat).filter(s=>s.state==='load').length}
 
 /* κουμπί Διακοπή / Ανανέωση */
@@ -703,6 +753,48 @@ $('#stopBtn').onclick=()=>{
   if(m==='stop')stopStream();
   else if(m==='refresh'){ if(lastQuery)$('#q').value=lastQuery; runSearch(lastExact); }
 };
+
+/* ---------- ⛽ Καύσιμα ---------- */
+function fuelLabel(key){return t('fuel_'+key)}
+async function loadFuel(){
+  if(fuelLoading)return; fuelLoading=true;
+  $('#grid').innerHTML=skelCards(6); busy(true,t('fuel_loading'));
+  try{ fuelData=await api('/api/fuel'); }
+  catch(e){ fuelData={error:String(e),national:[],prefectures:[]}; }
+  fuelLoading=false; busy(false,'');
+  $('#statusTxt').textContent=(fuelData&&fuelData.date)?('⛽ '+t('fuel_updated')+': '+fuelData.date):'';
+  renderFuel();
+}
+function renderFuel(){
+  const g=$('#grid'); g.classList.add('fuelmode'); if(!fuelData){g.innerHTML='';return;}
+  const pref=fuelData.prefectures||[];
+  if(fuelData.error||!pref.length){
+    g.innerHTML=`<div class="empty"><div class="big">⛽</div>${esc(t('fuel_none'))}${fuelData.error?'<br><small style="color:var(--mut2)">'+esc(fuelData.error)+'</small>':''}</div>`;
+    return;
+  }
+  const flt=norm($('#q').value||'');
+  let rows=pref.filter(p=>!flt||norm(p.nomos).includes(flt));
+  const k=fuelSort.key,dir=fuelSort.dir;
+  rows=rows.slice().sort((a,b)=>{
+    if(k==='nomos')return a.nomos.localeCompare(b.nomos,'el')*dir;
+    const av=a[k],bv=b[k];
+    if(typeof av!=='number')return 1; if(typeof bv!=='number')return -1; return (av-bv)*dir;
+  });
+  const ext={};
+  FUEL_KEYS.forEach(key=>{const v=rows.map(r=>r[key]).filter(x=>typeof x==='number');ext[key]=v.length?{min:Math.min(...v),max:Math.max(...v)}:{};});
+  const tiles=(fuelData.national||[]).map(n=>`<div class="ftile"><div class="fl">${esc(fuelLabel(n.key))}</div><div class="fv">€${(n.price||0).toFixed(3)}</div><div class="fs">${n.stations?esc(Number(n.stations).toLocaleString('el'))+' '+esc(t('fuel_stations')):'&nbsp;'}</div></div>`).join('');
+  const arrow=key=>fuelSort.key===key?(fuelSort.dir>0?' ▲':' ▼'):'';
+  const th=`<th class="nm" data-k="nomos">${esc(t('fuel_nomos'))}${arrow('nomos')}</th>`+FUEL_KEYS.map(key=>`<th data-k="${key}">${esc(fuelLabel(key))}${arrow(key)}</th>`).join('');
+  const body=rows.map(p=>{
+    const tds=FUEL_KEYS.map(key=>{const v=p[key];let cls='';if(typeof v==='number'){if(v===ext[key].min)cls=' class="min"';else if(v===ext[key].max)cls=' class="max"';}return `<td${cls}>${typeof v==='number'?'€'+v.toFixed(3):'—'}</td>`;}).join('');
+    return `<tr><td class="nm">${esc(p.nomos)}</td>${tds}</tr>`;
+  }).join('');
+  g.innerHTML=`<div class="fuel-tiles">${tiles}</div>
+    <div class="fuel-head"><b>${esc(t('fuel_by_nomos'))} <span style="color:var(--mut2);font-weight:600">(${rows.length})</span></b></div>
+    <div class="fuel-scroll"><table class="ftbl"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="fuel-note">${esc(t('fuel_src'))}</div>`;
+  g.querySelectorAll('.ftbl th').forEach(h=>h.onclick=()=>{const key=h.dataset.k;if(fuelSort.key===key)fuelSort.dir*=-1;else fuelSort={key,dir:1};renderFuel();});
+}
 
 /* ---------- filters ---------- */
 $('#toggleFilters').onclick=()=>$('#filters').classList.toggle('show');
@@ -727,7 +819,7 @@ function applyFilters(){
 
 /* ---------- product grid ---------- */
 function renderProducts(){
-  const g=$('#grid');
+  const g=$('#grid'); g.classList.remove('fuelmode');
   if(!products.length){
     g.innerHTML=streaming?skelCards(6):`<div class="empty"><div class="big">🔍</div>${esc(t('no_products'))}<br>${esc(t('try_other'))}</div>`;
     return;

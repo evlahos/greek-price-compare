@@ -47,12 +47,17 @@ if (-not (Test-Path $venvPy)) {
     if (-not (Test-Path $venvPy)) { Write-Host "[!] Αποτυχία .venv" -ForegroundColor Red; Read-Host "Enter"; exit 1 }
 } else { Write-Host "[2/4] Περιβάλλον: εντάξει" -ForegroundColor Green }
 
-# 3) Βιβλιοθήκες
+# 3) Βιβλιοθήκες — reinstall όταν αλλάζει το requirements.txt (π.χ. νέα εξάρτηση)
 $depsFlag = Join-Path $here ".venv\.deps_ok"
-if (-not (Test-Path $depsFlag)) {
-    Write-Host "[3/4] Εγκατάσταση βιβλιοθηκών (Flask, Playwright, Pillow, pywebview)..." -ForegroundColor Yellow
+$reqFile  = Join-Path $here "requirements.txt"
+$needDeps = $true
+if (Test-Path $depsFlag) {
+    try { $needDeps = (Get-Item $reqFile).LastWriteTimeUtc -gt (Get-Item $depsFlag).LastWriteTimeUtc } catch { $needDeps = $true }
+}
+if ($needDeps) {
+    Write-Host "[3/4] Εγκατάσταση/ενημέρωση βιβλιοθηκών (Flask, Playwright, Pillow, pywebview, pdfplumber)..." -ForegroundColor Yellow
     & $venvPy -m pip install --upgrade pip | Out-Null
-    & $venvPy -m pip install -r (Join-Path $here "requirements.txt")
+    & $venvPy -m pip install -r $reqFile
     if ($LASTEXITCODE -ne 0) { Write-Host "[!] Αποτυχία βιβλιοθηκών" -ForegroundColor Red; Read-Host "Enter"; exit 1 }
     "ok" | Out-File -Encoding ascii $depsFlag
 } else { Write-Host "[3/4] Βιβλιοθήκες: εντάξει" -ForegroundColor Green }
