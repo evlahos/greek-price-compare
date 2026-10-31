@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.32"
+VERSION = "0.33"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -665,32 +665,38 @@ def _browser_exe_candidates():
 PREFERRED_BROWSER = os.environ.get("GPC_BROWSER", "").strip().lower()
 
 
-def launch_chromium(pw):
+_STEALTH_ARGS = ["--disable-blink-features=AutomationControlled",
+                 "--disable-features=IsolateOrigins,site-per-process"]
+
+
+def launch_chromium(pw, extra_args=None):
     """Εκκινεί ΑΟΡΑΤΟ (headless) Chromium-based browser. Σειρά:
     0) ρητός GPC_BROWSER (αν οριστεί),
     1) το Chromium του Playwright (αν κατέβηκε) — πιο αξιόπιστο headless,
     2) Edge/Chrome μέσω channel (πάντα headless στα Windows),
     3) άλλοι Chromium-based (Edge/Chrome/Brave/Vivaldi/Chromium) — ΟΧΙ Opera.
-    Η Opera αποκλείεται γιατί δεν τρέχει headless (ανοίγει ορατό παράθυρο)."""
+    Η Opera αποκλείεται γιατί δεν τρέχει headless (ανοίγει ορατό παράθυρο).
+    extra_args: πρόσθετα Chromium flags (π.χ. stealth για anti-bot σελίδες)."""
     attempts = []
     cands = _browser_exe_candidates()
     pref = [c for c in cands if PREFERRED_BROWSER and PREFERRED_BROWSER in c.lower()]
+    kw = {"args": list(extra_args)} if extra_args else {}
 
     # 0) Προτιμώμενος browser μέσω του exe του
     for exe in pref:
         try:
-            return pw.chromium.launch(headless=True, executable_path=exe)
+            return pw.chromium.launch(headless=True, executable_path=exe, **kw)
         except Exception as exc:
             attempts.append(f"{os.path.basename(exe)}: {str(exc)[:55]}")
     # 1) Chromium του Playwright
     try:
-        return pw.chromium.launch(headless=True)
+        return pw.chromium.launch(headless=True, **kw)
     except Exception as exc:
         attempts.append(f"chromium: {str(exc)[:70]}")
     # 2) Edge/Chrome μέσω channel
     for channel in ("msedge", "chrome"):
         try:
-            return pw.chromium.launch(headless=True, channel=channel)
+            return pw.chromium.launch(headless=True, channel=channel, **kw)
         except Exception as exc:
             attempts.append(f"{channel}: {str(exc)[:70]}")
     # 3) Υπόλοιποι Chromium-based browsers — ΕΚΤΟΣ Opera (ανοίγει ορατό παράθυρο
@@ -699,7 +705,7 @@ def launch_chromium(pw):
         if exe in pref or "opera" in exe.lower():
             continue
         try:
-            return pw.chromium.launch(headless=True, executable_path=exe)
+            return pw.chromium.launch(headless=True, executable_path=exe, **kw)
         except Exception as exc:
             attempts.append(f"{os.path.basename(exe)}: {str(exc)[:55]}")
     raise RuntimeError("Δεν βρέθηκε συμβατός browser — " + " | ".join(attempts[-4:]))
@@ -1220,10 +1226,18 @@ def ebay_search(query, limit=25):
     δοκιμάζουμε ΠΡΩΤΑ απλό HTTP (γρήγορο, παρακάμπτει consent/headless)· αν
     αποτύχει/αδειάσει, πέφτουμε σε Playwright."""
     url = _EBAY_SEARCH_URL.format(q=urllib.parse.quote(query))
-    # 1) HTTP πρώτα
+    # 1) HTTP πρώτα — πλήρη browser-like headers (το eBay κρύβει το SRP από
+    #    "γυμνά" requests· με sec-ch-ua/Sec-Fetch σερβίρει κανονικά s-card).
     try:
-        html = http_get(url, timeout=20,
-                        extra_headers={"Accept-Language": "de-DE,de;q=0.9,en;q=0.8"})
+        html = http_get(url, timeout=20, extra_headers={
+            "Accept-Language": "de-DE,de;q=0.9,en;q=0.8",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none", "Sec-Fetch-User": "?1",
+            "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+            "sec-ch-ua-mobile": "?0", "sec-ch-ua-platform": '"Windows"',
+            "Cache-Control": "max-age=0",
+        })
         items = _parse_ebay(html, limit)
         if items:
             return _ebay_rows(items, limit), f"{EBAY_LABEL}: {len(items)} αγγελίες"
@@ -1238,15 +1252,39 @@ def ebay_search(query, limit=25):
     try:
         with sync_playwright() as pw:
             try:
-                browser = launch_chromium(pw)
+                browser = launch_chromium(pw, extra_args=_STEALTH_ARGS)
             except Exception as exc:
                 return [], f"eBay: δεν ξεκίνησε browser — {str(exc)[:110]}"
             try:
                 ctx = browser.new_context(user_agent=_UA, locale="de-DE",
+                                          timezone_id="Europe/Berlin",
                                           viewport={"width": 1366, "height": 900})
+                # stealth: κρύβουμε δείκτες αυτοματισμού (navigator.webdriver κ.λπ.)
+                try:
+                    ctx.add_init_script(
+                        "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+                        "window.chrome={runtime:{}};"
+                        "Object.defineProperty(navigator,'languages',{get:()=>['de-DE','de','en']});"
+                        "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});")
+                except Exception:
+                    pass
                 page = ctx.new_page()
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    # Αποδοχή του DSGVO consent banner (αλλιώς το SRP δεν φορτώνει
+                    # κάρτες σε fresh/headless session).
+                    for sel in ("button#gdpr-banner-accept", "#gdpr-banner-accept",
+                                "button[aria-label*='akzeptier' i]",
+                                "button:has-text('Alle akzeptieren')",
+                                "button:has-text('Akzeptieren')"):
+                        try:
+                            el = page.query_selector(sel)
+                            if el:
+                                el.click(timeout=2500)
+                                page.wait_for_timeout(600)
+                                break
+                        except Exception:
+                            pass
                     try:
                         page.wait_for_selector("li.s-card, li.s-item", timeout=12000)
                         page.wait_for_timeout(700)

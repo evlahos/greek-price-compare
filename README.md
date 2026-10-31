@@ -1,4 +1,4 @@
-# Σύγκριση Τιμών / Price Compare — v0.32
+# Σύγκριση Τιμών / Price Compare — v0.33
 
 Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
 εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
@@ -39,6 +39,18 @@ docker compose up --build   →   http://localhost:8765
 Σε Windows PC που έχει ήδη τρέξει το `INSTALL.bat`, τρέξε **μία φορά** το
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
+
+### Αλλαγές 0.33 — eBay εκτός Τεχνολογίας (anti-bot) + live επαλήθευση
+- **Live επαλήθευση στη Sophia** (πραγματικό δίκτυο): Skroutz ✅ (δουλεύει, χωρίς
+  Cloudflare), BestPrice/Public/e-shop.gr/Amazon.de ✅, streaming/φίλτρα/status ανά
+  πηγή ✅, τιμή ανά μονάδα ✅, best-price badges ✅, theme ✅.
+- **eBay: αφαιρέθηκε από την Τεχνολογία.** Επιβεβαιώθηκε ότι το eBay.de έχει ισχυρή
+  anti-bot προστασία: ο parser μας είναι σωστός (βγάζει 25 προϊόντα από το ίδιο HTML),
+  αλλά οι server-side διαδρομές (HTTP + headless Playwright) μπλοκάρονται. Δοκιμάστηκαν
+  browser-like headers (sec-ch-ua/Sec-Fetch), αποδοχή DSGVO consent, και stealth
+  (απόκρυψη navigator.webdriver) — χωρίς αποτέλεσμα. Το **Amazon.de καλύπτει** τις
+  ευρωπαϊκές τιμές τεχνολογίας. Ο eBay scraper παραμένει στον κώδικα (για πιθανό
+  μελλοντικό eBay Browse API). Οι βελτιώσεις consent/stealth κρατήθηκαν (ωφελούν γενικά).
 
 ### Αλλαγές 0.32 — Skeletons ανά πηγή & Διακοπή/Ανανέωση
 - **Trailing skeletons:** όσο κάποια πηγή ακόμη φορτώνει, εμφανίζονται γκρίζες
