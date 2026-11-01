@@ -1,4 +1,4 @@
-# Σύγκριση Τιμών / Price Compare — v0.35
+# Σύγκριση Τιμών / Price Compare — v0.36
 
 Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
 εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
@@ -39,6 +39,17 @@ docker compose up --build   →   http://localhost:8765
 Σε Windows PC που έχει ήδη τρέξει το `INSTALL.bat`, τρέξε **μία φορά** το
 `build_exe.bat` → παράγει `dist\GreekPriceCompare\GreekPriceCompare.exe`.
 Αντίγραψε όλο τον φάκελο `dist\GreekPriceCompare` σε οποιονδήποτε άλλο υπολογιστή.
+
+### Αλλαγές 0.36 — ⛽ Τιμές ΑΝΑ ΠΡΑΤΗΡΙΟ (ονόματα, χάρτης, Google ratings)
+- Στην κατηγορία ⛽ Καύσιμα, νέα όψη **«Πρατήρια (ονόματα & τιμές)»** δίπλα στους μέσους
+  όρους νομού: διαλέγεις **νομό** → λίστα πρατηρίων με **όνομα, μάρκα, περιοχή, τιμές ανά
+  καύσιμο (95/98/100/diesel/θέρμανσης/LPG/CNG), Google ★ και σύνδεσμο χάρτη**. Φίλτρο
+  ονόματος/περιοχής, επιλογή καυσίμου, ταξινόμηση & 🟢 φθηνότερο.
+- Πηγή: **fuelGR open dataset** (athanasso/fuelGR-scraper, GitHub Releases· δεδομένα από
+  deixto.gr/e-Katanalotis/Υπ. Ανάπτυξης) — 4.500+ πρατήρια, ~2×/ημέρα, χωρίς Cloudflare,
+  κατεβαίνει απευθείας από GitHub. core.fuel_stations() + /api/fuel_stations (cache 2h).
+  Έτσι καλύπτεται το αίτημα για τιμές ανά πρατήριο (το επίσημο fuelprices.gr δίνει μόνο
+  μέσους όρους νομού· το /CheckPrices είναι stateful φόρμα windows-1253).
 
 ### Αλλαγές 0.35 — Αξιολογήσεις παντού, σφραγίσεις ΑΑΔΕ, fixes
 - **Αξιολογήσεις σε περισσότερες πηγές:** κεντρική συγχώνευση βαθμολογιών από το

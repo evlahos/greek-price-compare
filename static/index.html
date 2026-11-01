@@ -281,6 +281,28 @@ a{color:var(--cy);text-decoration:none}
 .pen-item .pd{flex:none;color:var(--am);font:700 12px Inter;white-space:nowrap;min-width:84px}
 .pen-item .pt{flex:1;color:var(--ink);font:500 13px/1.4 Inter}
 .pen-item .pa{flex:none;color:var(--mut2);font-size:14px}
+/* fuel view toggle + πρατήρια */
+.fuel-toggle{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--stroke);border-radius:999px;background:var(--panel);margin:0 2px 14px}
+.ftg{border:0;background:transparent;color:var(--mut);font:700 12px Inter;padding:8px 15px;border-radius:999px;cursor:pointer;transition:.2s;white-space:nowrap}
+.ftg.on{color:#06101f;background:var(--grad)}
+.ftg:not(.on):hover{color:var(--ink)}
+.st-ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 2px 14px}
+.st-lbl{color:var(--mut);font:600 12px Inter;display:inline-flex;align-items:center;gap:7px}
+.gsel{height:40px;border-radius:11px;border:1px solid var(--stroke);background:var(--panel2);color:var(--ink);font:600 13px Inter;padding:0 12px;outline:none;cursor:pointer}
+.gsel:focus{border-color:var(--stroke2)}
+.st-list{display:flex;flex-direction:column;gap:7px}
+.st-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--stroke);border-radius:12px;background:var(--panel)}
+.st-item.best{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.06)}
+.st-main{flex:1;min-width:0}
+.st-nm{font:600 14px Inter;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-br{color:var(--cy);font:700 11px Inter;margin-left:4px}
+.st-sub{color:var(--mut);font:500 12px Inter;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-rt{flex:none;display:flex;align-items:center;gap:8px}
+.st-rat{color:var(--am);font:700 12px Inter;white-space:nowrap}
+.st-map{text-decoration:none;font-size:16px;opacity:.85}
+.st-map:hover{opacity:1}
+.st-pr{flex:none;font:800 17px Orbitron;color:var(--ink);min-width:86px;text-align:right;font-variant-numeric:tabular-nums}
+.st-pr.min{color:var(--gr)}
 
 /* ---------- light theme ---------- */
 :root[data-theme="light"]{
@@ -454,6 +476,9 @@ const T={
     fuel_src:'Πηγή: Παρατηρητήριο Τιμών Υγρών Καυσίμων — Υπ. Ανάπτυξης (fuelprices.gr). Μέσες τιμές λιανικής, €/λτ με ΦΠΑ. 🟢 φθηνότερος / 🔴 ακριβότερος νομός ανά καύσιμο.',
     pen_title:'Πρόσφατες σφραγίσεις / παραβάσεις πρατηρίων',pen_loading:'Φόρτωση ανακοινώσεων ΑΑΔΕ…',pen_none:'Δεν βρέθηκαν πρόσφατες σχετικές ανακοινώσεις.',
     pen_note:'Πηγή: ΑΑΔΕ — Δελτία Τύπου. Ενημερωτικό (ανά περιοχή/υπόθεση), ΟΧΙ ιστορικό ανά συγκεκριμένο πρατήριο — τα ονόματα συνήθως δεν δημοσιεύονται. Κλικ για το επίσημο δελτίο.',
+    fv_avg:'📊 Μέσοι όροι ανά νομό',fv_stations:'⛽ Πρατήρια (ονόματα & τιμές)',st_pick:'Διάλεξε νομό…',st_fuel:'Καύσιμο:',st_filter_ph:'Φίλτρο: όνομα/μάρκα/περιοχή…',
+    st_loading:'Φόρτωση πρατηρίων…',st_none:'Δεν βρέθηκαν πρατήρια (διάλεξε νομό).',st_map:'Χάρτης',st_count:'πρατήρια',
+    st_note:'Πηγή: fuelGR open dataset (deixto.gr / Υπ. Ανάπτυξης) — τιμές όπως δηλώνονται από τα πρατήρια, ανανέωση ~2×/ημέρα. ★ = Google. 🟢 φθηνότερο.',
     q_ph:'Τι ψάχνεις; π.χ. Samsung 990 PRO 1TB',clear_t:'Καθάρισμα',postal_ph:'Τ.Κ.',
     go:'Αναζήτηση',gox:'Ακριβές όνομα',gox_t:'Μόνο προϊόντα που περιέχουν ακριβώς αυτό',
     sources_lbl:'Πηγές',url_ph:'…ή επικόλλησε σύνδεσμο προϊόντος από eshop',fetch:'Άντληση',
@@ -498,6 +523,9 @@ const T={
     fuel_src:'Source: Greek Fuel Prices Observatory — Ministry of Development (fuelprices.gr). Average retail, €/lt incl. VAT. 🟢 cheapest / 🔴 priciest prefecture per fuel.',
     pen_title:'Recent fuel-station seals / violations',pen_loading:'Loading AADE announcements…',pen_none:'No recent related announcements found.',
     pen_note:'Source: AADE press releases. Informational (by area/case), NOT a per-station history — names are usually not published. Click for the official announcement.',
+    fv_avg:'📊 Prefecture averages',fv_stations:'⛽ Stations (names & prices)',st_pick:'Choose prefecture…',st_fuel:'Fuel:',st_filter_ph:'Filter: name/brand/area…',
+    st_loading:'Loading stations…',st_none:'No stations (choose a prefecture).',st_map:'Map',st_count:'stations',
+    st_note:'Source: fuelGR open dataset (deixto.gr / Min. of Development) — prices as reported by stations, ~2×/day. ★ = Google. 🟢 cheapest.',
     q_ph:'What are you looking for? e.g. Samsung 990 PRO 1TB',clear_t:'Clear',postal_ph:'Postal',
     go:'Search',gox:'Exact name',gox_t:'Only products that contain exactly this',
     sources_lbl:'Sources',url_ph:'…or paste a product link from an eshop',fetch:'Fetch',
@@ -582,6 +610,7 @@ const SOURCES={
 };
 const FUEL_KEYS=['u95','u100','diesel','autogas','heating'];
 let fuelData=null, fuelSort={key:'nomos',dir:1}, fuelLoading=false, _qStash=null;
+let fuelView=load('gpc_fuelview','avg'), stationData=null, stationPref=load('gpc_stpref',''), stationFuel='u95', stationLoading=false;
 let mode='tech', products=[], allProducts=[], offers=[], curProduct=null, compare=[];
 let cart=load('gpc_cart',[]), history=load('gpc_hist',[]), alerts=load('gpc_alerts',[]);
 let srcState={};
@@ -744,7 +773,7 @@ function runSearch(exact){
 $('#go').onclick=()=>runSearch(false);
 $('#gox').onclick=()=>runSearch(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(false)});
-$('#q').addEventListener('input',()=>{if(mode==='fuel')renderFuel()});
+$('#q').addEventListener('input',()=>{if(mode==='fuel'){if(fuelView==='stations')renderStationsList();else renderAverages();}});
 $('#clear').onclick=()=>{$('#q').value='';$('#q').focus();if(mode==='fuel')renderFuel()};
 
 function skelCards(n){return Array(Math.max(0,n|0)).fill('<div class="sk"></div>').join('')}
@@ -778,9 +807,19 @@ async function loadFuel(){
 }
 function renderFuel(){
   const g=$('#grid'); g.classList.add('fuelmode'); if(!fuelData){g.innerHTML='';return;}
+  const toggle=`<div class="fuel-toggle">
+    <button class="ftg${fuelView==='avg'?' on':''}" data-v="avg">${esc(t('fv_avg'))}</button>
+    <button class="ftg${fuelView==='stations'?' on':''}" data-v="stations">${esc(t('fv_stations'))}</button></div>`;
+  g.innerHTML=toggle+`<div id="fuelBody"></div>`;
+  g.querySelectorAll('.ftg').forEach(b=>b.onclick=()=>{fuelView=b.dataset.v;save('gpc_fuelview',fuelView);$('#q').value='';$('#q').placeholder=t(fuelView==='stations'?'st_filter_ph':'fuel_filter_ph');renderFuel();});
+  $('#q').placeholder=t(fuelView==='stations'?'st_filter_ph':'fuel_filter_ph');
+  if(fuelView==='stations') renderStationsView(); else renderAverages();
+}
+function renderAverages(){
+  const body=$('#fuelBody'); if(!body)return;
   const pref=fuelData.prefectures||[];
   if(fuelData.error||!pref.length){
-    g.innerHTML=`<div class="empty"><div class="big">⛽</div>${esc(t('fuel_none'))}${fuelData.error?'<br><small style="color:var(--mut2)">'+esc(fuelData.error)+'</small>':''}</div>`;
+    body.innerHTML=`<div class="empty"><div class="big">⛽</div>${esc(t('fuel_none'))}${fuelData.error?'<br><small style="color:var(--mut2)">'+esc(fuelData.error)+'</small>':''}</div>`;
     return;
   }
   const flt=norm($('#q').value||'');
@@ -796,18 +835,80 @@ function renderFuel(){
   const tiles=(fuelData.national||[]).map(n=>`<div class="ftile"><div class="fl">${esc(fuelLabel(n.key))}</div><div class="fv">€${(n.price||0).toFixed(3)}</div><div class="fs">${n.stations?esc(Number(n.stations).toLocaleString('el'))+' '+esc(t('fuel_stations')):'&nbsp;'}</div></div>`).join('');
   const arrow=key=>fuelSort.key===key?(fuelSort.dir>0?' ▲':' ▼'):'';
   const th=`<th class="nm" data-k="nomos">${esc(t('fuel_nomos'))}${arrow('nomos')}</th>`+FUEL_KEYS.map(key=>`<th data-k="${key}">${esc(fuelLabel(key))}${arrow(key)}</th>`).join('');
-  const body=rows.map(p=>{
+  const bd=rows.map(p=>{
     const tds=FUEL_KEYS.map(key=>{const v=p[key];let cls='';if(typeof v==='number'){if(v===ext[key].min)cls=' class="min"';else if(v===ext[key].max)cls=' class="max"';}return `<td${cls}>${typeof v==='number'?'€'+v.toFixed(3):'—'}</td>`;}).join('');
     return `<tr><td class="nm">${esc(p.nomos)}</td>${tds}</tr>`;
   }).join('');
-  g.innerHTML=`<div class="fuel-tiles">${tiles}</div>
+  body.innerHTML=`<div class="fuel-tiles">${tiles}</div>
     <div class="fuel-head"><b>${esc(t('fuel_by_nomos'))} <span style="color:var(--mut2);font-weight:600">(${rows.length})</span></b></div>
-    <div class="fuel-scroll"><table class="ftbl"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="fuel-scroll"><table class="ftbl"><thead><tr>${th}</tr></thead><tbody>${bd}</tbody></table></div>
     <div class="fuel-note">${esc(t('fuel_src'))}</div>
     <div id="fuelPen"></div>`;
-  g.querySelectorAll('.ftbl th').forEach(h=>h.onclick=()=>{const key=h.dataset.k;if(fuelSort.key===key)fuelSort.dir*=-1;else fuelSort={key,dir:1};renderFuel();});
+  body.querySelectorAll('.ftbl th').forEach(h=>h.onclick=()=>{const key=h.dataset.k;if(fuelSort.key===key)fuelSort.dir*=-1;else fuelSort={key,dir:1};renderAverages();});
   loadFuelPenalties();
 }
+
+/* ---- Πρατήρια (ανά πρατήριο, fuelGR dataset) ---- */
+async function loadStationsMeta(){
+  if(stationData&&stationData.prefectures&&stationData.prefectures.length)return;
+  try{ const d=await api('/api/fuel_stations'); stationData={prefectures:d.prefectures||[],fuels:d.fuels||[],stations:[]}; }
+  catch(e){ stationData={prefectures:[],fuels:[],stations:[],error:String(e)}; }
+}
+async function loadStationsFor(pref){
+  stationLoading=true; const ls=document.getElementById('stList'); if(ls)ls.innerHTML=`<div class="fuel-note">${esc(t('st_loading'))}</div>`;
+  try{ const d=await api('/api/fuel_stations?pref='+encodeURIComponent(pref)); stationData.stations=d.stations||[]; stationData.date=d.date; }
+  catch(e){ stationData.stations=[]; }
+  stationLoading=false; renderStationsList();
+}
+async function renderStationsView(){
+  const body=$('#fuelBody'); if(!body)return;
+  await loadStationsMeta();
+  const prefs=(stationData&&stationData.prefectures)||[];
+  const fuels=(stationData&&stationData.fuels)||[['u95','Αμόλυβδη 95']];
+  if(!prefs.length){ body.innerHTML=`<div class="empty"><div class="big">⛽</div>${esc(t('fuel_none'))}${stationData&&stationData.error?'<br><small style="color:var(--mut2)">'+esc(stationData.error)+'</small>':''}</div>`; return; }
+  const prefOpts=`<option value="">${esc(t('st_pick'))}</option>`+prefs.map(p=>`<option value="${esc(p)}"${p===stationPref?' selected':''}>${esc(p)}</option>`).join('');
+  const fuelOpts=fuels.map(f=>`<option value="${esc(f[0])}"${f[0]===stationFuel?' selected':''}>${esc(f[1])}</option>`).join('');
+  body.innerHTML=`<div class="st-ctrl">
+      <select id="stPref" class="gsel">${prefOpts}</select>
+      <label class="st-lbl">${esc(t('st_fuel'))} <select id="stFuel" class="gsel">${fuelOpts}</select></label>
+    </div>
+    <div id="stList"></div>
+    <div class="fuel-note">${esc(t('st_note'))}</div>`;
+  document.getElementById('stPref').onchange=e=>{stationPref=e.target.value;save('gpc_stpref',stationPref);if(stationPref)loadStationsFor(stationPref);else{stationData.stations=[];renderStationsList();}};
+  document.getElementById('stFuel').onchange=e=>{stationFuel=e.target.value;renderStationsList();};
+  if(stationPref) loadStationsFor(stationPref); else renderStationsList();
+}
+function renderStationsList(){
+  const box=document.getElementById('stList'); if(!box)return;
+  if(stationLoading){box.innerHTML=`<div class="fuel-note">${esc(t('st_loading'))}</div>`;return;}
+  let st=(stationData&&stationData.stations)||[];
+  if(!stationPref){box.innerHTML=`<div class="fuel-note" style="margin-top:14px">${esc(t('st_none'))}</div>`;return;}
+  const flt=norm($('#q').value||'');
+  if(flt) st=st.filter(s=>norm((s.name||'')+' '+(s.brand||'')+' '+(s.area||'')+' '+(s.address||'')).includes(flt));
+  // sort by selected fuel asc (stations without that fuel go last)
+  st=st.slice().sort((a,b)=>{const av=a.prices&&a.prices[stationFuel],bv=b.prices&&b.prices[stationFuel];if(typeof av!=='number')return 1;if(typeof bv!=='number')return -1;return av-bv;});
+  const vals=st.map(s=>s.prices&&s.prices[stationFuel]).filter(x=>typeof x==='number');
+  const minV=vals.length?Math.min(...vals):null;
+  if(!st.length){box.innerHTML=`<div class="fuel-note" style="margin-top:14px">${esc(t('st_none'))}</div>`;return;}
+  const dateStr=stationData.date?` · ${esc(stationData.date)}`:'';
+  const rows=st.map(s=>{
+    const pv=s.prices&&s.prices[stationFuel];
+    const price=typeof pv==='number'?('€'+pv.toFixed(3)):'—';
+    const isMin=typeof pv==='number'&&pv===minV;
+    const others=Object.keys(s.prices||{}).filter(k=>k!==stationFuel).slice(0,4).map(k=>`${esc(fuelShort(k))} €${s.prices[k].toFixed(2)}`).join(' · ');
+    const rc=parseInt(s.rating_count,10);
+    const rat=(typeof s.rating==='number'&&s.rating>0)?`<span class="st-rat">★ ${s.rating.toFixed(1)}${isFinite(rc)&&rc>0?' ('+rc+')':''}</span>`:'';
+    const map=s.maps?`<a class="st-map" href="${esc(s.maps)}" target="_blank" rel="noopener" title="${esc(t('st_map'))}">📍</a>`:'';
+    return `<div class="st-item${isMin?' best':''}">
+      <div class="st-main"><div class="st-nm">${esc(s.name)}${s.brand?` <span class="st-br">${esc(s.brand)}</span>`:''}</div>
+        <div class="st-sub">${esc(s.area||s.address||'')}${others?` · <span style="color:var(--mut2)">${others}</span>`:''}</div></div>
+      <div class="st-rt">${rat}${map}</div>
+      <div class="st-pr${isMin?' min':''}">${price}</div></div>`;
+  }).join('');
+  box.innerHTML=`<div class="fuel-head" style="margin-top:4px"><b>${esc(stationPref)} <span style="color:var(--mut2);font-weight:600">(${st.length} ${esc(t('st_count'))})${dateStr}</span></b></div>
+    <div class="st-list">${rows}</div>`;
+}
+function fuelShort(k){return ({u95:'95',u98:'98',u100:'100',d:'Diesel',dp:'DieselP',dh:'Θέρμ.',lpg:'LPG',cng:'CNG'})[k]||k}
 let _penData=null;
 async function loadFuelPenalties(){
   const box=document.getElementById('fuelPen'); if(!box)return;

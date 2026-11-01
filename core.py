@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.35"
+VERSION = "0.36"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -2001,6 +2001,66 @@ def fuel_penalties(pages=22):
     _PEN_CACHE["data"] = data
     _PEN_CACHE["ts"] = now
     return data
+
+
+# ── ⛽ Τιμές ΑΝΑ ΠΡΑΤΗΡΙΟ (ονόματα, διευθύνσεις, τιμές, Google rating) ──────────
+# Πηγή: fuelGR open dataset (athanasso/fuelGR-scraper, GitHub Releases) — 4.500+
+# πρατήρια, από deixto.gr/e-Katanalotis/Υπ. Ανάπτυξης, ανανέωση 2×/μέρα, χωρίς
+# Cloudflare. Το επίσημο fuelprices.gr δίνει μόνο μέσους όρους νομού (δες fuel_prices).
+_STATIONS_URL = ("https://github.com/athanasso/fuelGR-scraper/releases/latest/"
+                 "download/stations_latest.min.json")
+_STATIONS_CACHE = {"ts": 0, "data": None}
+_STATIONS_TTL = 7200  # 2 ώρες
+_STATION_FUELS = [("u95", "Αμόλυβδη 95"), ("u98", "Αμόλυβδη 98"),
+                  ("u100", "Αμόλυβδη 100"), ("d", "Diesel"),
+                  ("dp", "Diesel Premium"), ("dh", "Πετρέλαιο Θέρμανσης"),
+                  ("lpg", "Υγραέριο (Autogas)"), ("cng", "CNG")]
+
+
+def _fuel_stations_all():
+    now = time.time()
+    if _STATIONS_CACHE["data"] and (now - _STATIONS_CACHE["ts"]) < _STATIONS_TTL:
+        return _STATIONS_CACHE["data"]
+    data = json.loads(http_get(_STATIONS_URL, timeout=40))
+    if not isinstance(data, list):
+        data = data.get("stations") if isinstance(data, dict) else []
+    _STATIONS_CACHE["data"] = data
+    _STATIONS_CACHE["ts"] = now
+    return data
+
+
+def fuel_stations(pref=None, q=None, limit=500):
+    """Πρατήρια ανά νομό με ονόματα & τιμές ανά καύσιμο (+ Google rating).
+    Χωρίς pref → επιστρέφει μόνο τη λίστα νομών (για το dropdown)."""
+    try:
+        allst = _fuel_stations_all()
+    except Exception as exc:
+        return {"error": str(exc)[:140], "stations": [], "prefectures": [],
+                "fuels": _STATION_FUELS}
+    prefs = sorted({s.get("pref") for s in allst if s.get("pref")})
+    out, date = [], None
+    if pref:
+        nq = _strip_accents(q).lower().strip() if q else ""
+        for s in allst:
+            if s.get("pref") != pref:
+                continue
+            if nq:
+                hay = _strip_accents(" ".join(str(s.get(k, "")) for k in ("n", "b", "a", "mun"))).lower()
+                if nq not in hay:
+                    continue
+            date = date or s.get("dt")
+            p = s.get("p") or {}
+            prices = {k: p.get(k) for k, _ in _STATION_FUELS if isinstance(p.get(k), (int, float)) and p.get(k)}
+            out.append({"name": s.get("n") or s.get("b") or "—",
+                        "brand": s.get("b") or "", "area": s.get("mun") or "",
+                        "address": s.get("a") or "", "prices": prices,
+                        "rating": s.get("mr"), "rating_count": s.get("mc"),
+                        "maps": s.get("mu") or "",
+                        "lat": s.get("lat"), "lng": s.get("lng")})
+            if len(out) >= limit:
+                break
+    return {"stations": out, "prefectures": prefs, "fuels": _STATION_FUELS,
+            "date": date, "source": "fuelGR open dataset (deixto.gr / Υπ. Ανάπτυξης)"}
 
 
 # ── Μητρώο απευθείας πηγών: label → συνάρτηση (query) → (rows, diag). ──────────
