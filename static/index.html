@@ -44,6 +44,9 @@ body{
 .logo .spark{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:20px;
   background:var(--grad);box-shadow:var(--glow);color:#06101f}
 .logo b{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.logo .ver{font-family:Inter,sans-serif;font-weight:600;font-size:11px;letter-spacing:.3px;
+  color:var(--mut2,#8aa);background:rgba(127,127,127,.14);border:1px solid var(--stroke);
+  border-radius:999px;padding:2px 8px;align-self:center;margin-left:2px}
 .seg{display:flex;gap:4px;padding:5px;border:1px solid var(--stroke);border-radius:22px;
   background:var(--panel);backdrop-filter:blur(14px);margin-left:auto;flex-wrap:wrap;justify-content:center}
 .seg button{border:0;background:transparent;color:var(--mut);font:600 13px Inter;padding:9px 16px;
@@ -327,7 +330,7 @@ a{color:var(--cy);text-decoration:none}
 
 <div class="wrap">
   <div class="top">
-    <div class="logo"><span class="spark">⚡</span> <span data-i18n-html="appName"></span></div>
+    <div class="logo"><span class="spark">⚡</span> <span data-i18n-html="appName"></span><span class="ver" id="verTag"></span></div>
     <div class="seg" id="seg">
       <button data-m="tech" class="on" data-i18n="cat_tech"></button>
       <button data-m="super" data-i18n="cat_super"></button>
@@ -1417,6 +1420,7 @@ setLang(LANG);
 setMode(mode);
 renderHistory();cartCount();updateCmp();
 refreshAlertBadge();
+(async()=>{try{const v=await api('/api/version');if(v&&v.version)$('#verTag').textContent='v'+v.version;}catch(e){}})();
 </script>
 </body>
 </html>

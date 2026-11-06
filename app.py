@@ -246,6 +246,11 @@ def api_videos():
         return jsonify({"videos": [], "error": str(exc)})
 
 
+@app.get("/api/version")
+def api_version():
+    return jsonify({"version": getattr(core, "VERSION", "")})
+
+
 @app.get("/api/compare_international")
 def api_compare_international():
     """🌍 Διεθνής σύγκριση: πραγματική αναζήτηση σε Amazon ευρωζώνης + GR τιμή."""
