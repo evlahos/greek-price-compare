@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.36"
+VERSION = "0.37"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1048,14 +1048,17 @@ def supermarket_search(query, limit=25):
                 "merchant_rating": None, "merchant_rating_count": None,
                 "item_price": price, "shipping_price": None, "total_price": None,
                 "availability": _sm_unit_text(o.get("price_normalized"), unit),
-                "delivery_estimate": extra, "offer_url": "", "currency": "EUR"})
+                "delivery_estimate": extra, "offer_url": "", "currency": "EUR",
+                "in_stock": price is not None})
         offers.sort(key=lambda x: (x["item_price"] is None, x["item_price"] or 9e9))
         rows.append({
             "source": SUPERMARKET_LABEL, "product_id": "",
             "title": p.get("name") or "", "image": p.get("image_url") or "",
             "price_from": to_float(stats.get("min_price")),
             "offer_count": stats.get("retailer_count") or len(offers),
-            "rating": None, "product_url": "", "_sm_offers": offers})
+            "rating": None, "product_url": "",
+            "in_stock": to_float(stats.get("min_price")) is not None,
+            "_sm_offers": offers})
     return rows, f"{SUPERMARKET_LABEL}: {len(rows)} προϊόντα"
 
 
@@ -1796,6 +1799,96 @@ def amazon_search(query, limit=25):
         AMAZON_LABEL, _AMAZON_SEARCH_URL, query, limit,
         wait_selector='div[data-component-type="s-search-result"]',
         parse_js=_AMAZON_PARSE_JS, settle_ms=1200)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🌍 Διεθνής σύγκριση — ίδιο προϊόν σε Amazon ευρωζώνης (.de/.fr/.it/.es) + Ελλάδα.
+# Όλες οι χώρες σε EUR, άρα οι τιμές συγκρίνονται άμεσα (χωρίς μετατροπές). Βασίζεται
+# σε πραγματική αναζήτηση ανά domain· παίρνει το πρώτο αποτέλεσμα (best-effort match),
+# ώστε ο χρήστης να επιβεβαιώνει με τίτλο/εικόνα/σύνδεσμο. ΟΧΙ mock δεδομένα.
+# ─────────────────────────────────────────────────────────────────────────────
+_INTL_DOMAINS = [
+    ("de", "Γερμανία", "🇩🇪", "amazon.de", "de-DE"),
+    ("fr", "Γαλλία", "🇫🇷", "amazon.fr", "fr-FR"),
+    ("it", "Ιταλία", "🇮🇹", "amazon.it", "it-IT"),
+    ("es", "Ισπανία", "🇪🇸", "amazon.es", "es-ES"),
+]
+_INTL_NOISE_RE = re.compile(r"[\(\[].*?[\)\]]|[«»\"'“”]", re.S)
+
+
+def _amazon_parse_js(domain):
+    """Ίδιος parser με το amazon.de αλλά με dp URL για το δοσμένο domain."""
+    return _AMAZON_PARSE_JS.replace("https://www.amazon.de/dp/",
+                                    "https://www." + domain + "/dp/")
+
+
+def _intl_clean_query(name):
+    """Καθαρίζει τίτλο προϊόντος για διεθνή αναζήτηση: αφαιρεί παρενθέσεις/εισαγωγικά,
+    κρατά brand+model (τα πρώτα ~9 σημαντικά tokens)."""
+    s = _INTL_NOISE_RE.sub(" ", name or "")
+    toks = [w for w in re.split(r"\s+", s) if len(w) > 1]
+    return " ".join(toks[:9]).strip() or (name or "").strip()
+
+
+def _amazon_domain_top(domain, query, limit=6):
+    """Το φθηνότερο αποτέλεσμα με τιμή από ένα Amazon domain (best-effort match)."""
+    rows, diag = jsonld_itemlist_search(
+        AMAZON_LABEL, "https://www." + domain + "/s?k={q}", query, limit,
+        wait_selector='div[data-component-type="s-search-result"]',
+        parse_js=_amazon_parse_js(domain), settle_ms=1200)
+    priced = [r for r in (rows or []) if to_float(r.get("price_from"))]
+    if not priced:
+        return None, diag
+    priced.sort(key=lambda r: to_float(r.get("price_from")))
+    top = priced[0]
+    return {"title": top.get("title") or "", "price": to_float(top.get("price_from")),
+            "url": top.get("product_url") or "", "image": top.get("image") or "",
+            "candidates": len(priced)}, diag
+
+
+def compare_international(name, gr_price=None, gr_url=None):
+    """Διεθνής σύγκριση τιμών για ένα προϊόν. Τρέχει πραγματική αναζήτηση στα Amazon
+    ευρωζώνης (.de/.fr/.it/.es) παράλληλα και προσθέτει την ελληνική τιμή (αν δοθεί).
+    Επιστρέφει {query, results[], note, diagnostics[]}. Όλες οι τιμές σε EUR."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    q = _intl_clean_query(name)
+    results, diags = [], []
+    if gr_price is not None and to_float(gr_price):
+        results.append({"code": "gr", "country": "Ελλάδα", "flag": "🇬🇷",
+                        "title": (name or "").strip()[:160],
+                        "price": round(to_float(gr_price), 2), "currency": "EUR",
+                        "url": gr_url or "", "image": "", "home": True})
+    try:
+        with ThreadPoolExecutor(max_workers=len(_INTL_DOMAINS)) as ex:
+            fut = {ex.submit(_amazon_domain_top, dom, q): (code, cname, flag)
+                   for code, cname, flag, dom, _loc in _INTL_DOMAINS}
+            for f in as_completed(fut):
+                code, cname, flag = fut[f]
+                try:
+                    top, diag = f.result()
+                except Exception as exc:
+                    diags.append(f"{cname}: {str(exc)[:80]}")
+                    continue
+                if diag:
+                    diags.append(f"{cname}: {diag}")
+                if top and top.get("price"):
+                    results.append({"code": code, "country": cname, "flag": flag,
+                                    "title": top["title"][:160], "price": round(top["price"], 2),
+                                    "currency": "EUR", "url": top["url"], "image": top["image"],
+                                    "candidates": top.get("candidates", 1)})
+    except Exception as exc:
+        diags.append(str(exc)[:120])
+    results.sort(key=lambda r: r["price"])
+    if results:
+        cheapest = results[0]["price"]
+        for r in results:
+            r["cheapest"] = (r["price"] == cheapest)
+            r["diff_pct"] = (round((r["price"] - cheapest) / cheapest * 100, 1)
+                             if cheapest else 0)
+    note = ("Τιμές Amazon ευρωζώνης (σε €, άμεσα συγκρίσιμες). Το αποτέλεσμα ανά χώρα "
+            "είναι η φθηνότερη αντιστοιχία από την αναζήτηση — επιβεβαίωσε με τον τίτλο/"
+            "σύνδεσμο. Δεν περιλαμβάνονται μεταφορικά/δασμοί.")
+    return {"query": q, "results": results, "note": note, "diagnostics": diags}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

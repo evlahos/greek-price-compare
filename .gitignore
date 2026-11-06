@@ -20,3 +20,8 @@ cart.json
 # OS
 Thumbs.db
 .DS_Store
+
+# runtime data (alerts + local price history)
+alerts.json
+*.db
+price_log.db

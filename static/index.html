@@ -368,6 +368,7 @@ a{color:var(--cy);text-decoration:none}
         <button class="btn ghost sm" id="fetch" data-i18n="fetch"></button>
       </div>
       <button class="btn ghost sm" id="toggleFilters" data-i18n="filters_btn"></button>
+      <button class="btn ghost sm" id="alertsBtn" title="🔔">🔔 <span class="cnt" id="alertsCnt" style="display:none">0</span></button>
     </div>
     <div class="filters" id="filters">
       <label data-i18n="f_price"></label>
@@ -375,6 +376,12 @@ a{color:var(--cy);text-decoration:none}
       <label><input class="mini" id="fmax" type="number" data-i18n-ph="f_max_ph"></label>
       <label><span data-i18n="f_stock"></span> <span class="switch" id="fstock"><i></i></span></label>
       <label><span data-i18n="f_rating"></span> <input class="mini" id="frating" type="number" placeholder="0-5" step="0.5" min="0" max="5"></label>
+      <select id="gsort" class="mini" style="width:auto;min-width:140px">
+        <option value="" data-i18n="sort_grid_def"></option>
+        <option value="pasc" data-i18n="sort_grid_pasc"></option>
+        <option value="pdesc" data-i18n="sort_grid_pdesc"></option>
+        <option value="rating" data-i18n="sort_grid_rating"></option>
+      </select>
       <span class="count" id="fcount"></span>
     </div>
   </div>
@@ -411,6 +418,9 @@ a{color:var(--cy);text-decoration:none}
     <button class="btn ghost sm" id="shHist" data-i18n="sh_hist"></button>
     <button class="btn ghost sm" id="shDec" data-i18n="sh_dec"></button>
     <button class="btn ghost sm" id="shAlert" data-i18n="sh_alert"></button>
+    <button class="btn ghost sm" id="shIntl" data-i18n="sh_intl"></button>
+    <button class="btn ghost sm" id="shLog" data-i18n="sh_log"></button>
+    <button class="btn ghost sm" id="shCopy" data-i18n="sh_copy"></button>
   </div>
   <div class="sh-list" id="shList"></div>
 </aside>
@@ -508,7 +518,18 @@ const T={
     csv_head:['Προϊόν','Κατάστημα','Ποσότητα','Τιμή','Σύνολο','Σύνδεσμος'],
     fetch_busy:'Άντληση…',fetch_notfound:'δεν βρέθηκε',link_source:'Σύνδεσμος',
     spark_cap:'Διάμεσος ανά περίοδο (παλιότερα → τώρα)· σκιά = εύρος ελάχ.–μέγ.',
-    src_super:'Σούπερ Μάρκετ',src_politeia:'Πολιτεία'
+    src_super:'Σούπερ Μάρκετ',src_politeia:'Πολιτεία',
+    sh_intl:'🌍 Άλλες χώρες',sh_copy:'📋 Αντιγραφή',sh_log:'📊 Τοπικό ιστ.',
+    intl_title:'🌍 Σύγκριση με άλλες χώρες',intl_loading:'Αναζήτηση…',
+    intl_none:'Δεν βρέθηκαν αντίστοιχα προϊόντα σε Amazon ευρωζώνης.',
+    intl_cheapest:'φθηνότερη',intl_view:'Προβολή ↗',intl_candidates:'υποψήφια',
+    copied:'Αντιγράφηκε στο πρόχειρο!',
+    sort_grid_def:'Ταξινόμηση: προεπιλογή',sort_grid_pasc:'Τιμή ↑',sort_grid_pdesc:'Τιμή ↓',sort_grid_rating:'Αξιολόγηση ↓',
+    alerts_title:'🔔 Alerts τιμής',alerts_none:'Δεν υπάρχουν αποθηκευμένα alerts.',
+    alerts_check:'🔄 Έλεγχος τώρα',alerts_del:'Διαγραφή',alert_saved:'Αποθηκεύτηκε alert',
+    alerts_target:'στόχος',alerts_last:'τελευτ.',alerts_hit:'ΕΠΙΤΕΥΧΘΗΚΕ',
+    log_title:'📊 Τοπικό ιστορικό τιμών',log_clear:'Καθαρισμός',
+    log_none:'Δεν υπάρχει ακόμη τοπικό ιστορικό γι’ αυτό. Συμπληρώνεται καθώς κάνεις αναζητήσεις.'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -555,7 +576,18 @@ const T={
     csv_head:['Product','Store','Quantity','Price','Total','Link'],
     fetch_busy:'Fetching…',fetch_notfound:'not found',link_source:'Link',
     spark_cap:'Median per period (older → now); shaded = min–max range',
-    src_super:'Supermarket',src_politeia:'Politeia'
+    src_super:'Supermarket',src_politeia:'Politeia',
+    sh_intl:'🌍 Other countries',sh_copy:'📋 Copy',sh_log:'📊 Local hist.',
+    intl_title:'🌍 Compare with other countries',intl_loading:'Searching…',
+    intl_none:'No matching products found on eurozone Amazons.',
+    intl_cheapest:'cheapest',intl_view:'View ↗',intl_candidates:'candidates',
+    copied:'Copied to clipboard!',
+    sort_grid_def:'Sort: default',sort_grid_pasc:'Price ↑',sort_grid_pdesc:'Price ↓',sort_grid_rating:'Rating ↓',
+    alerts_title:'🔔 Price alerts',alerts_none:'No saved alerts.',
+    alerts_check:'🔄 Check now',alerts_del:'Delete',alert_saved:'Alert saved',
+    alerts_target:'target',alerts_last:'last',alerts_hit:'HIT',
+    log_title:'📊 Local price history',log_clear:'Clear',
+    log_none:'No local history for this yet. It fills up as you run searches.'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -930,6 +962,7 @@ function renderPenalties(){
 $('#toggleFilters').onclick=()=>$('#filters').classList.toggle('show');
 $('#fstock').onclick=function(){this.classList.toggle('on');applyFilters()};
 ['#fmin','#fmax','#frating'].forEach(s=>$(s).addEventListener('input',applyFilters));
+$('#gsort').onchange=applyFilters;
 function applyFilters(){
   const mn=parseFloat($('#fmin').value), mx=parseFloat($('#fmax').value);
   const stock=$('#fstock').classList.contains('on'); const mr=parseFloat($('#frating').value);
@@ -939,10 +972,17 @@ function applyFilters(){
     if(isFinite(mn)&&(!isFinite(pr)||pr<mn))return false;
     if(isFinite(mx)&&(!isFinite(pr)||pr>mx))return false;
     if(isFinite(mr)&&!(parseFloat(p.rating)>=mr))return false;
-    if(stock){const a=((p._direct||{}).availability||'').toLowerCase();
+    if(stock){
+      if(p.in_stock===false)return false;  // σούπερ μάρκετ: ρητό flag
+      const a=((p._direct||{}).availability||'').toLowerCase();
       if(/εξαντλ|μη διαθ|out of|unavailable/.test(a))return false}
     return true;
   });
+  // ταξινόμηση grid (προαιρετική· η «προεπιλογή» κρατά τη σειρά άφιξης)
+  const gs=$('#gsort').value;
+  if(gs==='pasc')products.sort((a,b)=>(parseFloat(a.price_from)||9e9)-(parseFloat(b.price_from)||9e9));
+  else if(gs==='pdesc')products.sort((a,b)=>(parseFloat(b.price_from)||-1)-(parseFloat(a.price_from)||-1));
+  else if(gs==='rating')products.sort((a,b)=>(parseFloat(b.rating)||-1)-(parseFloat(a.rating)||-1));
   renderProducts();
   $('#fcount').textContent=allProducts.length?`${products.length}/${allProducts.length}`:'';
 }
@@ -1050,6 +1090,8 @@ async function openProduct(i){
   $('#shTitle').textContent=p.title||'—';
   $('#shSub').textContent=shSubText(p);
   $('#shEu').style.display=(p.source==='Σούπερ Μάρκετ')?'':'none';
+  // 🌍 διεθνής σύγκριση: για τεχνολογία/γενικά προϊόντα (όχι σούπερ μάρκετ/καύσιμα/βιβλία)
+  $('#shIntl').style.display=(['Σούπερ Μάρκετ','Πολιτεία'].includes(p.source)||mode==='super'||mode==='fuel'||mode==='books')?'none':'';
   $('#shImg').style.backgroundImage=p.image?`url('${esc(p.image)}')`:'';
   $('#shImg').style.cursor=p.image?'zoom-in':'default';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
@@ -1171,13 +1213,98 @@ $('#shEu').onclick=async()=>{
     +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(t('eu_note'))}</div>`;
   dialogHTML(t('eu_title'),body);
 };
-$('#shAlert').onclick=()=>{if(!curProduct)return;const cur=parseFloat(curProduct.price_from)||'';
+/* ---------- price alerts (server-persistent + localStorage mirror) ---------- */
+const jpost=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
+const jdel=(p)=>fetch(p,{method:'DELETE'}).then(r=>r.json());
+$('#shAlert').onclick=async()=>{if(!curProduct)return;const cur=parseFloat(curProduct.price_from)||'';
   const v=prompt(t('alert_prompt')(curProduct.title),cur);
   if(v==null)return;const th=parseFloat(v);if(!isFinite(th))return;
+  // localStorage mirror (για instant checkAlerts στα επόμενα αποτελέσματα)
   alerts=alerts.filter(a=>a.title!==curProduct.title);alerts.push({title:curProduct.title,th});save('gpc_alerts',alerts);
-  toast(`Alert: ${curProduct.title.slice(0,30)} < ${euro(th)}`,'🔔')};
+  try{await jpost('/api/alerts',{title:curProduct.title,target_price:th,
+    product_id:curProduct.product_id||'',product_url:curProduct.product_url||''});}catch(e){}
+  refreshAlertBadge();
+  toast(t('alert_saved')+`: ${curProduct.title.slice(0,30)} < ${euro(th)}`,'🔔')};
 function checkAlerts(prods){alerts.forEach(a=>{const hit=prods.find(p=>p.title===a.title&&parseFloat(p.price_from)<=a.th);
   if(hit)toast(t('alert_hit')(a.title.slice(0,28),euro(hit.price_from),euro(a.th)),'🔔')})}
+async function refreshAlertBadge(){
+  try{const d=await api('/api/alerts');const n=(d.alerts||[]).length;
+    const b=$('#alertsCnt');if(n){b.textContent=n;b.style.display='';}else b.style.display='none';}catch(e){}
+}
+$('#alertsBtn').onclick=async()=>{
+  let d={alerts:[]};try{d=await api('/api/alerts');}catch(e){}
+  const list=d.alerts||[];
+  const body=list.length?`<div class="sh-list">`+list.map(a=>{
+    const hit=a.triggered?`<span class="tag star" style="background:#34d39933;color:#34d399">${esc(t('alerts_hit'))}</span>`:'';
+    const last=(a.last_price!=null)?` · ${t('alerts_last')} ${euro(a.last_price)}`:'';
+    return `<div class="offer"><div class="shop" style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
+      <small>${t('alerts_target')} ${euro(a.target_price)}${last}</small> ${hit}</div>
+      <button class="btn ghost sm adel" data-id="${esc(a.id)}">${esc(t('alerts_del'))}</button></div>`;
+  }).join('')+`</div>`:`<div class="empty"><div class="big">🔔</div>${esc(t('alerts_none'))}</div>`;
+  const foot=`<div style="display:flex;gap:8px;margin-top:12px">
+    <button class="btn ghost sm" id="alChk" style="flex:1">${esc(t('alerts_check'))}</button></div>`;
+  const o=dialogHTML(t('alerts_title'),body+foot);
+  o.querySelectorAll('.adel').forEach(b=>b.onclick=async()=>{await jdel('/api/alerts/'+encodeURIComponent(b.dataset.id));
+    alerts=alerts.filter(a=>a.title);save('gpc_alerts',alerts);refreshAlertBadge();o.remove();$('#alertsBtn').onclick();});
+  const chk=o.querySelector('#alChk');if(chk)chk.onclick=async()=>{chk.disabled=true;chk.textContent='…';
+    try{const r=await jpost('/api/alerts/check',{});(r.triggered||[]).forEach(x=>toast(`💸 ${x.title.slice(0,28)} ${euro(x.price)} (<${euro(x.target)})`,'🔔'));}catch(e){}
+    refreshAlertBadge();o.remove();$('#alertsBtn').onclick();};
+};
+
+/* ---------- 🌍 διεθνής σύγκριση (πραγματικά δεδομένα Amazon ευρωζώνης) ---------- */
+$('#shIntl').onclick=async()=>{
+  if(!curProduct)return;const q=curProduct.title||'';if(!q)return;
+  const btn=$('#shIntl');const prev=btn.textContent;btn.disabled=true;btn.textContent=t('intl_loading');
+  let d={results:[],note:'',diagnostics:[]};
+  try{d=await api('/api/compare_international?q='+encodeURIComponent(q)
+    +'&gr_price='+encodeURIComponent(parseFloat(curProduct.price_from)||'')
+    +'&gr_url='+encodeURIComponent(curProduct.product_url||''));}catch(e){}
+  btn.disabled=false;btn.textContent=prev;
+  const res=(d&&d.results)||[];
+  if(!res.length){dialogHTML(t('intl_title'),`<div class="empty"><div class="big">🌍</div>${esc(t('intl_none'))}</div>`
+    +((d.diagnostics||[]).length?`<div style="color:var(--mut2);font:500 11px Inter;margin-top:10px">${esc((d.diagnostics||[]).join(' · '))}</div>`:''));return;}
+  const vals=res.map(r=>r.price);const mn=Math.min(...vals),mx=Math.max(...vals);
+  const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const chip=(l,v)=>`<div style="flex:1;min-width:84px;text-align:center;padding:8px 6px;background:var(--panel2,rgba(255,255,255,.03));border:1px solid var(--line,rgba(255,255,255,.08));border-radius:10px"><div style="color:var(--mut2);font:600 10px Inter;letter-spacing:.3px;text-transform:uppercase">${l}</div><div style="color:var(--ink);font:700 15px Inter;margin-top:3px">${v}</div></div>`;
+  const summary=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">`
+    +chip(`🌍 ${esc(t('eu_countries'))}`,String(res.length))+chip(esc(t('eu_min')),euro(mn))
+    +chip(esc(t('eu_avg')),euro(avg))+chip(esc(t('eu_max')),euro(mx))+`</div>`;
+  const rows=res.map(r=>{
+    const best=r.cheapest?` <span class="tag star" style="background:#34d39933;color:#34d399">${esc(t('intl_cheapest'))}</span>`:'';
+    const diff=(!r.cheapest&&r.diff_pct)?` <small style="color:var(--mut2)">+${r.diff_pct}%</small>`:'';
+    const ttl=r.home?'':`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;color:var(--mut);font:500 11px Inter">${esc(r.title||'')}</div>`;
+    const link=r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="font:600 11px Inter">${esc(t('intl_view'))}</a>`:'';
+    return `<div class="offer${r.cheapest?' best':''}"><div class="shop" style="min-width:0">${r.flag} ${esc(r.country)}${best}${diff}${ttl}${link}</div><div class="op">${euro(r.price)}</div></div>`;
+  }).join('');
+  dialogHTML(t('intl_title'),summary+`<div class="sh-list">${rows}</div>`
+    +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(d.note||'')}</div>`);
+};
+
+/* ---------- 📋 αντιγραφή τιμής ---------- */
+$('#shCopy').onclick=async()=>{
+  if(!curProduct)return;const txt=`${curProduct.title} — ${euro(curProduct.price_from)}`;
+  try{await navigator.clipboard.writeText(txt);}catch(e){
+    const ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy')}catch(e2){}ta.remove();}
+  toast(t('copied'),'📋');
+};
+
+/* ---------- 📊 τοπικό ιστορικό τιμών (από το SQLite price_log) ---------- */
+$('#shLog').onclick=async()=>{
+  if(!curProduct)return;const q=curProduct.title||'';if(!q)return;
+  let d={entries:[],series:[]};
+  try{d=await api('/api/price_log?title='+encodeURIComponent(q)+'&days=180');}catch(e){}
+  const ent=(d&&d.entries)||[];
+  if(!ent.length){dialogHTML(t('log_title'),`<div class="empty"><div class="big">📊</div>${esc(t('log_none'))}</div>`);return;}
+  const sv=(d.series||[]).slice(-12);
+  const spark=sparkSVG({series:sv.map(v=>({med:v,label:''}))});
+  const rows=ent.slice(-40).reverse().map(e=>{const dt=new Date(e.ts*1000);
+    const ds=dt.toLocaleDateString()+' '+dt.toLocaleTimeString().slice(0,5);
+    return `<div class="offer"><div class="shop">${esc(e.source||'')}<small>${esc(ds)}</small></div><div class="op">${euro(e.price)}</div></div>`;}).join('');
+  const foot=`<div style="display:flex;justify-content:flex-end;margin-top:10px"><button class="btn ghost sm" id="logClr">${esc(t('log_clear'))}</button></div>`;
+  const o=dialogHTML(t('log_title'),(spark?`<div style="margin-bottom:12px">${spark}</div>`:'')+`<div class="sh-list">${rows}</div>`+foot);
+  const cb=o.querySelector('#logClr');if(cb)cb.onclick=async()=>{await jdel('/api/price_log');o.remove();toast(t('log_clear'),'🗑️');};
+};
 
 /* ---------- cart ---------- */
 function openCart(on){$('#cart').classList.toggle('on',on);$('#cartScrim').classList.toggle('on',on)}
@@ -1289,6 +1416,7 @@ setTheme(THEME);
 setLang(LANG);
 setMode(mode);
 renderHistory();cartCount();updateCmp();
+refreshAlertBadge();
 </script>
 </body>
 </html>
