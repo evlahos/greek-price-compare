@@ -354,7 +354,7 @@ a{color:var(--cy);text-decoration:none}
       <button data-m="all" data-i18n="cat_all"></button>
     </div>
     <div class="langsw" id="langsw">
-      <button data-l="el">ΕΛ</button><button data-l="en">EN</button>
+      <button data-l="el" data-i18n-title="lang_el_t">ΕΛ</button><button data-l="en" data-i18n-title="lang_en_t">EN</button>
     </div>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
@@ -371,17 +371,17 @@ a{color:var(--cy);text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
         <input id="postal" data-i18n-ph="postal_ph" autocomplete="off">
       </div>
-      <button class="btn primary" id="go" data-i18n="go"></button>
+      <button class="btn primary" id="go" data-i18n-title="go_t" data-i18n="go"></button>
       <button class="btn ghost" id="gox" data-i18n="gox" data-i18n-title="gox_t"></button>
     </div>
     <div class="chips" id="chips"><span class="lbl" data-i18n="sources_lbl"></span></div>
     <div class="subrow">
       <div class="urlf">
         <input id="url" data-i18n-ph="url_ph">
-        <button class="btn ghost sm" id="fetch" data-i18n="fetch"></button>
+        <button class="btn ghost sm" id="fetch" data-i18n-title="fetch_t" data-i18n="fetch"></button>
       </div>
-      <button class="btn ghost sm" id="toggleFilters" data-i18n="filters_btn"></button>
-      <button class="btn ghost sm" id="alertsBtn" title="🔔">🔔 <span class="cnt" id="alertsCnt" style="display:none">0</span></button>
+      <button class="btn ghost sm" id="toggleFilters" data-i18n-title="filters_t" data-i18n="filters_btn"></button>
+      <button class="btn ghost sm" id="alertsBtn" data-i18n-title="alerts_tt">🔔 <span class="cnt" id="alertsCnt" style="display:none">0</span></button>
     </div>
     <div class="filters" id="filters">
       <label data-i18n="f_price"></label>
@@ -401,7 +401,7 @@ a{color:var(--cy);text-decoration:none}
 
   <div class="status" id="status"><span id="statusTxt"></span>
     <span class="bar" id="bar"><i></i></span>
-    <button class="btn ghost sm" id="stopBtn" style="display:none;height:32px;padding:0 13px;font-size:12px"></button></div>
+    <button class="btn ghost sm" id="stopBtn" data-i18n-title="stop_t" style="display:none;height:32px;padding:0 13px;font-size:12px"></button></div>
   <div class="srcstat" id="srcStatus"></div>
 
   <div class="sect"><span id="sectlbl"></span><span class="ln"></span></div>
@@ -417,7 +417,7 @@ a{color:var(--cy);text-decoration:none}
       <h3 id="shTitle">—</h3>
       <div class="sh-sub" id="shSub"></div>
     </div>
-    <button class="back" id="shBack">✕</button>
+    <button class="back" id="shBack" data-i18n-title="close_t">✕</button>
   </div>
   <div class="sh-act">
     <select id="osort">
@@ -426,33 +426,33 @@ a{color:var(--cy);text-decoration:none}
       <option value="rating" data-i18n="sort_rating"></option>
       <option value="shop" data-i18n="sort_shop"></option>
     </select>
-    <button class="btn ghost sm" id="shEu" data-i18n="sh_euprice" style="display:none"></button>
-    <button class="btn ghost sm" id="shVideo" data-i18n="sh_video"></button>
-    <button class="btn ghost sm" id="shHist" data-i18n="sh_hist"></button>
-    <button class="btn ghost sm" id="shDec" data-i18n="sh_dec"></button>
-    <button class="btn ghost sm" id="shAlert" data-i18n="sh_alert"></button>
-    <button class="btn ghost sm" id="shIntl" data-i18n="sh_intl"></button>
-    <button class="btn ghost sm" id="shLog" data-i18n="sh_log"></button>
-    <button class="btn ghost sm" id="shCopy" data-i18n="sh_copy"></button>
+    <button class="btn ghost sm" id="shEu" data-i18n-title="shEu_t" data-i18n="sh_euprice" style="display:none"></button>
+    <button class="btn ghost sm" id="shVideo" data-i18n-title="shVideo_t" data-i18n="sh_video"></button>
+    <button class="btn ghost sm" id="shHist" data-i18n-title="shHist_t" data-i18n="sh_hist"></button>
+    <button class="btn ghost sm" id="shDec" data-i18n-title="shDec_t" data-i18n="sh_dec"></button>
+    <button class="btn ghost sm" id="shAlert" data-i18n-title="shAlert_t" data-i18n="sh_alert"></button>
+    <button class="btn ghost sm" id="shIntl" data-i18n-title="shIntl_t" data-i18n="sh_intl"></button>
+    <button class="btn ghost sm" id="shLog" data-i18n-title="shLog_t" data-i18n="sh_log"></button>
+    <button class="btn ghost sm" id="shCopy" data-i18n-title="shCopy_t" data-i18n="sh_copy"></button>
   </div>
   <div class="intel" id="shIntel" style="display:none"></div>
   <div class="sh-list" id="shList"></div>
 </aside>
 
 <!-- compare + cart -->
-<button class="cmpbtn" id="cmpBtn"><span data-i18n="cmp_btn"></span> <span class="cnt" id="cmpCnt">0</span></button>
-<button class="cartbtn" id="cartBtn"><span data-i18n="cart_btn"></span> <span class="cnt" id="cartCnt">0</span></button>
+<button class="cmpbtn" id="cmpBtn" data-i18n-title="cmp_t"><span data-i18n="cmp_btn"></span> <span class="cnt" id="cmpCnt">0</span></button>
+<button class="cartbtn" id="cartBtn" data-i18n-title="cart_t"><span data-i18n="cart_btn"></span> <span class="cnt" id="cartCnt">0</span></button>
 <div class="scrim" id="cartScrim"></div>
 <aside class="cart" id="cart">
-  <div class="ch"><span data-i18n="cart_h"></span> <button class="back" id="cartBack">✕</button></div>
+  <div class="ch"><span data-i18n="cart_h"></span> <button class="back" id="cartBack" data-i18n-title="close_t">✕</button></div>
   <div class="ci" id="cartItems"></div>
   <div class="cf">
     <div class="tot"><span style="color:var(--mut);font-weight:600" data-i18n="total"></span><b id="cartTotal">€0.00</b></div>
     <div class="row">
-      <button class="btn ghost sm" id="cartCsv" style="flex:1" data-i18n="cart_csv"></button>
-      <button class="btn ghost sm" id="cartClear" style="flex:1" data-i18n="cart_clear"></button>
+      <button class="btn ghost sm" id="cartCsv" data-i18n-title="cartCsv_t" style="flex:1" data-i18n="cart_csv"></button>
+      <button class="btn ghost sm" id="cartClear" data-i18n-title="cartClear_t" style="flex:1" data-i18n="cart_clear"></button>
     </div>
-    <button class="btn primary sm" id="cartOpt" style="width:100%;margin-top:8px;display:none" data-i18n="opt_btn"></button>
+    <button class="btn primary sm" id="cartOpt" data-i18n-title="cartOpt_tt" style="width:100%;margin-top:8px;display:none" data-i18n="opt_btn"></button>
   </div>
 </aside>
 
@@ -553,7 +553,19 @@ const T={
     opt_none:'Πρόσθεσε προϊόντα σούπερ μάρκετ στο καλάθι πρώτα.',
     opt_items:'είδη',opt_missing:'λείπουν',opt_save:'💰 κερδίζεις έως',
     opt_for:(n)=>`Σύνολο για ${n} είδη · διαθεσιμότητα ανά αλυσίδα`,
-    opt_note:'Σύνολο = άθροισμα τιμών των ειδών ανά αλυσίδα. Αλυσίδες με μερική κάλυψη δείχνουν πόσα από τα είδη βρέθηκαν (🏆 = φθηνότερη με πλήρη κάλυψη).'
+    opt_note:'Σύνολο = άθροισμα τιμών των ειδών ανά αλυσίδα. Αλυσίδες με μερική κάλυψη δείχνουν πόσα από τα είδη βρέθηκαν (🏆 = φθηνότερη με πλήρη κάλυψη).',
+    go_t:'Αναζήτηση προϊόντων',fetch_t:'Φόρτωσε προϊόν από σύνδεσμο eshop',
+    filters_t:'Εμφάνιση/απόκρυψη φίλτρων & ταξινόμησης',alerts_tt:'Ειδοποιήσεις τιμής (watchlist)',
+    stop_t:'Διακοπή αναζήτησης',close_t:'Κλείσιμο',
+    shEu_t:'Ενδεικτικές ευρωπαϊκές τιμές',shVideo_t:'Βίντεο παρουσίασης (YouTube)',
+    shHist_t:'Ιστορικό τιμής (BestPrice)',shDec_t:'Έξυπνη απόφαση αγοράς',
+    shAlert_t:'Όρισε ειδοποίηση τιμής',shIntl_t:'Σύγκριση με άλλες χώρες + τελικό κόστος',
+    shLog_t:'Τοπικό ιστορικό τιμών',shCopy_t:'Αντιγραφή τιμής στο πρόχειρο',
+    cart_t:'Το καλάθι σου',cmp_t:'Σύγκριση επιλεγμένων',cartCsv_t:'Εξαγωγή σε CSV',
+    cartClear_t:'Άδειασμα καλαθιού',cartOpt_tt:'Φθηνότερη αλυσίδα για το καλάθι',
+    qtym_t:'Μείωση ποσότητας',qtyp_t:'Αύξηση ποσότητας',rm_t:'Αφαίρεση',adel_t:'Διαγραφή',
+    cat_hint:(c)=>`Αναζήτηση στην κατηγορία: ${c}`,chip_hint:(s)=>`Πηγή: ${s} — κλικ για εναλλαγή`,
+    lang_el_t:'Ελληνικά',lang_en_t:'Αγγλικά'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -620,7 +632,19 @@ const T={
     opt_none:'Add supermarket products to the basket first.',
     opt_items:'items',opt_missing:'missing',opt_save:'💰 save up to',
     opt_for:(n)=>`Total for ${n} items · availability per chain`,
-    opt_note:'Total = sum of item prices per chain. Chains with partial coverage show how many of the items were found (🏆 = cheapest with full coverage).'
+    opt_note:'Total = sum of item prices per chain. Chains with partial coverage show how many of the items were found (🏆 = cheapest with full coverage).',
+    go_t:'Search products',fetch_t:'Load a product from an eshop link',
+    filters_t:'Show/hide filters & sorting',alerts_tt:'Your price alerts (watchlist)',
+    stop_t:'Stop the search',close_t:'Close',
+    shEu_t:'Indicative European prices',shVideo_t:'Product videos (YouTube)',
+    shHist_t:'Price history (BestPrice)',shDec_t:'Smart buying decision',
+    shAlert_t:'Set a price alert',shIntl_t:'Compare with other countries + landed cost',
+    shLog_t:'Local price history',shCopy_t:'Copy price to clipboard',
+    cart_t:'Your basket',cmp_t:'Compare selected',cartCsv_t:'Export to CSV',
+    cartClear_t:'Empty the basket',cartOpt_tt:'Cheapest chain for your basket',
+    qtym_t:'Decrease quantity',qtyp_t:'Increase quantity',rm_t:'Remove',adel_t:'Delete',
+    cat_hint:(c)=>`Search in category: ${c}`,chip_hint:(s)=>`Source: ${s} — click to toggle`,
+    lang_el_t:'Greek',lang_en_t:'English'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -639,6 +663,7 @@ function applyStatic(){
   $$('[data-i18n-html]').forEach(e=>e.innerHTML=t(e.dataset.i18nHtml));
   $$('[data-i18n-ph]').forEach(e=>e.placeholder=t(e.dataset.i18nPh));
   $$('[data-i18n-title]').forEach(e=>e.title=t(e.dataset.i18nTitle));
+  $$('#seg button').forEach(b=>b.title=t('cat_hint')(b.textContent.trim()));
 }
 function setLang(l){
   if(l!=='en'&&l!=='el')l='el';
@@ -692,6 +717,7 @@ function renderChips(){
     if(!(id in srcState)) srcState[id]=true;
     const c=document.createElement('div');
     c.className='chip'+(srcState[id]?' on':''); c.innerHTML=`<span class="dot"></span>${esc(srcDisplay(label))}`;
+    c.title=t('chip_hint')(srcDisplay(label));
     c.onclick=()=>{srcState[id]=!srcState[id];c.classList.toggle('on',srcState[id])};
     box.appendChild(c);
   });
@@ -1417,8 +1443,8 @@ function renderCart(){
   box.innerHTML=cart.map((c,i)=>{const p=parseFloat(c.price);const line=isFinite(p)?p*c.qty:0;tot+=line;
     const nm=c.url?`<a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.title||'—')}</a>`:esc(c.title||'—');
     return `<div class="citem"><div class="ct"><b>${nm}</b><small>${esc(c.shop)} · ${euro(c.price)}</small></div>
-      <div class="q"><button data-d="-1" data-i="${i}">－</button>${c.qty}<button data-d="1" data-i="${i}">＋</button></div>
-      <div class="cp">${euro(line)}</div><button class="rm" data-r="${i}">🗑</button></div>`;
+      <div class="q"><button data-d="-1" data-i="${i}" title="${esc(t('qtym_t'))}">－</button>${c.qty}<button data-d="1" data-i="${i}" title="${esc(t('qtyp_t'))}">＋</button></div>
+      <div class="cp">${euro(line)}</div><button class="rm" data-r="${i}" title="${esc(t('rm_t'))}">🗑</button></div>`;
   }).join('')||`<div class="empty"><div class="big">🛒</div>${esc(t('cart_empty'))}</div>`;
   $('#cartTotal').textContent=euro(tot);
   const smN=cart.filter(c=>c.chains&&Object.keys(c.chains).length).length;
