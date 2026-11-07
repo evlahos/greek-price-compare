@@ -47,6 +47,16 @@ body{
 .logo .ver{font-family:Inter,sans-serif;font-weight:800;font-size:15px;letter-spacing:.4px;
   color:#06101f;background:var(--grad);border:none;box-shadow:var(--glow);
   border-radius:999px;padding:3px 11px;align-self:center;margin-left:6px}
+.intel{margin:0 0 12px;padding:11px 13px;border:1px solid var(--stroke);border-radius:14px;
+  background:linear-gradient(180deg,rgba(127,127,127,.06),rgba(127,127,127,.02))}
+.intel .badges{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.intel .bdg{font:800 12px Inter;letter-spacing:.2px;border-radius:999px;padding:4px 10px;white-space:nowrap}
+.intel .bdg.low{background:#34d39922;color:#34d399;border:1px solid #34d39955}
+.intel .bdg.deal{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55}
+.intel .bdg.high{background:#f8717122;color:#f87171;border:1px solid #f8717155}
+.intel .stats{display:flex;gap:14px;flex-wrap:wrap;font:600 12px Inter;color:var(--mut)}
+.intel .stats b{color:var(--ink);font-weight:800}
+.intel .spk{margin-top:9px}
 .seg{display:flex;gap:4px;padding:5px;border:1px solid var(--stroke);border-radius:22px;
   background:var(--panel);backdrop-filter:blur(14px);margin-left:auto;flex-wrap:wrap;justify-content:center}
 .seg button{border:0;background:transparent;color:var(--mut);font:600 13px Inter;padding:9px 16px;
@@ -425,6 +435,7 @@ a{color:var(--cy);text-decoration:none}
     <button class="btn ghost sm" id="shLog" data-i18n="sh_log"></button>
     <button class="btn ghost sm" id="shCopy" data-i18n="sh_copy"></button>
   </div>
+  <div class="intel" id="shIntel" style="display:none"></div>
   <div class="sh-list" id="shList"></div>
 </aside>
 
@@ -532,7 +543,10 @@ const T={
     alerts_check:'🔄 Έλεγχος τώρα',alerts_del:'Διαγραφή',alert_saved:'Αποθηκεύτηκε alert',
     alerts_target:'στόχος',alerts_last:'τελευτ.',alerts_hit:'ΕΠΙΤΕΥΧΘΗΚΕ',
     log_title:'📊 Τοπικό ιστορικό τιμών',log_clear:'Καθαρισμός',
-    log_none:'Δεν υπάρχει ακόμη τοπικό ιστορικό γι’ αυτό. Συμπληρώνεται καθώς κάνεις αναζητήσεις.'
+    log_none:'Δεν υπάρχει ακόμη τοπικό ιστορικό γι’ αυτό. Συμπληρώνεται καθώς κάνεις αναζητήσεις.',
+    intel_atl:'✅ Ιστορικό χαμηλό',intel_low_days:'✅ Χαμηλότερη τιμή {n} ημερών',
+    intel_deal:'🔥 Προσφορά',intel_high:'⏳ Ακριβότερη τώρα',
+    intel_lbl_low:'Χαμηλό',intel_lbl_med:'Διάμεσος',intel_lbl_now:'Τώρα',wl_chg:'μεταβ.'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -590,7 +604,10 @@ const T={
     alerts_check:'🔄 Check now',alerts_del:'Delete',alert_saved:'Alert saved',
     alerts_target:'target',alerts_last:'last',alerts_hit:'HIT',
     log_title:'📊 Local price history',log_clear:'Clear',
-    log_none:'No local history for this yet. It fills up as you run searches.'
+    log_none:'No local history for this yet. It fills up as you run searches.',
+    intel_atl:'✅ All-time low',intel_low_days:'✅ Lowest in {n} days',
+    intel_deal:'🔥 Deal',intel_high:'⏳ Pricey now',
+    intel_lbl_low:'Low',intel_lbl_med:'Median',intel_lbl_now:'Now',wl_chg:'chg'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -1099,6 +1116,7 @@ async function openProduct(i){
   $('#shImg').style.cursor=p.image?'zoom-in':'default';
   $('#shList').innerHTML='<div class="sk" style="height:60px;margin-bottom:9px"></div>'.repeat(4);
   openSheet(true);
+  loadIntel(p);
   try{
     if(p._sm_offers){offers=p._sm_offers;}
     else if(p.source==='Skroutz'&&/\/s\/\d+\//.test(p.product_url||'')){
@@ -1115,6 +1133,41 @@ async function openProduct(i){
     if(!p.image&&p.product_id){const bi=await api('/api/bp_image?product_id='+encodeURIComponent(p.product_id));
       if(bi.image){p.image=bi.image;$('#shImg').style.backgroundImage=`url('${esc(bi.image)}')`}}
   }catch(e){$('#shList').innerHTML='<div class="empty">'+esc(t('error'))+esc(''+e)+'</div>'}
+}
+const median=a=>{const s=a.slice().sort((x,y)=>x-y);const n=s.length;
+  return n?(n%2?s[(n-1)/2]:(s[n/2-1]+s[n/2])/2):null};
+// ⭐ Ευφυΐα τιμής: ιστορικό χαμηλό / προσφορά / ακριβό-τώρα + διάμεσος, αυτόματα στο προϊόν.
+async function loadIntel(p){
+  const el=$('#shIntel');el.style.display='none';el.innerHTML='';
+  if(!p)return;const tok=p;  // guard: αγνόησε αν άλλαξε προϊόν στο μεταξύ
+  let low=null,med=null,cur=parseFloat(p.price_from)||null,days=90,pts=[];
+  try{
+    if(p.product_id){
+      const d=await api('/api/history?product_id='+encodeURIComponent(p.product_id));
+      const ch=(d&&d.chart)||{};
+      const meds=(ch.series||[]).map(s=>s.med).filter(v=>typeof v==='number');
+      const mins=(ch.series||[]).map(s=>s.min).filter(v=>typeof v==='number');
+      if(typeof ch.current==='number')cur=ch.current;
+      low=(typeof ch.low==='number')?ch.low:(mins.length?Math.min(...mins):(meds.length?Math.min(...meds):null));
+      med=meds.length?median(meds):null;pts=meds;days=180;
+    }else{
+      const d=await api('/api/price_log?title='+encodeURIComponent(p.title||'')+'&days=90');
+      const s=(d&&d.series)||[];if(s.length<5)return;      // λίγα δεδομένα → μη δείξεις
+      low=Math.min(...s);med=median(s);pts=s;days=90;
+    }
+  }catch(e){return;}
+  if(curProduct!==tok)return;                              // το προϊόν άλλαξε
+  if(cur==null||low==null)return;
+  const badges=[];
+  if(cur<=low*1.01)badges.push(`<span class="bdg low">${esc(t('intel_atl'))}</span>`);
+  else if(med!=null&&cur<=med*0.93)badges.push(`<span class="bdg deal">${esc(t('intel_deal'))}</span>`);
+  else if(med!=null&&cur>=med*1.08)badges.push(`<span class="bdg high">${esc(t('intel_high'))}</span>`);
+  const stats=`<div class="stats"><span>${esc(t('intel_lbl_low'))}: <b>${euro(low)}</b></span>`
+    +(med!=null?`<span>${esc(t('intel_lbl_med'))}: <b>${euro(med)}</b></span>`:'')
+    +`<span>${esc(t('intel_lbl_now'))}: <b>${euro(cur)}</b></span></div>`;
+  const spk=pts.length>=2?`<div class="spk">${sparkSVG({series:pts.slice(-12).map(v=>({med:v,label:''}))})}</div>`:'';
+  el.innerHTML=(badges.length?`<div class="badges">${badges.join('')}</div>`:'')+stats+spk;
+  el.style.display='';
 }
 $('#osort').onchange=renderOffers;
 function renderOffers(){
@@ -1237,12 +1290,21 @@ async function refreshAlertBadge(){
 $('#alertsBtn').onclick=async()=>{
   let d={alerts:[]};try{d=await api('/api/alerts');}catch(e){}
   const list=d.alerts||[];
-  const body=list.length?`<div class="sh-list">`+list.map(a=>{
+  // watchlist: φέρε τοπικό ιστορικό ανά στοιχείο (παράλληλα) για sparkline + % μεταβολή
+  const hist=await Promise.all(list.map(a=>api('/api/price_log?title='+encodeURIComponent(a.title)+'&days=90').then(r=>r.series||[]).catch(()=>[])));
+  const body=list.length?`<div class="sh-list">`+list.map((a,i)=>{
+    const s=hist[i]||[];
+    const spk=s.length>=2?`<div style="margin-top:5px">${sparkSVG({series:s.slice(-10).map(v=>({med:v,label:''}))})}</div>`:'';
+    let chg='';
+    if(s.length>=2){const f=s[0],lv=s[s.length-1];if(f){const pct=Math.round((lv-f)/f*100);
+      const col=pct<0?'#34d399':(pct>0?'#f87171':'var(--mut2)');chg=` · <span style="color:${col}">${pct>0?'+':''}${pct}% ${esc(t('wl_chg'))}</span>`;}}
     const hit=a.triggered?`<span class="tag star" style="background:#34d39933;color:#34d399">${esc(t('alerts_hit'))}</span>`:'';
     const last=(a.last_price!=null)?` · ${t('alerts_last')} ${euro(a.last_price)}`:'';
-    return `<div class="offer"><div class="shop" style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
-      <small>${t('alerts_target')} ${euro(a.target_price)}${last}</small> ${hit}</div>
-      <button class="btn ghost sm adel" data-id="${esc(a.id)}">${esc(t('alerts_del'))}</button></div>`;
+    return `<div class="offer" style="flex-direction:column;align-items:stretch">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+        <div class="shop" style="min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.title)}</div>
+        <small>${t('alerts_target')} ${euro(a.target_price)}${last}${chg}</small> ${hit}</div>
+        <button class="btn ghost sm adel" data-id="${esc(a.id)}">${esc(t('alerts_del'))}</button></div>${spk}</div>`;
   }).join('')+`</div>`:`<div class="empty"><div class="big">🔔</div>${esc(t('alerts_none'))}</div>`;
   const foot=`<div style="display:flex;gap:8px;margin-top:12px">
     <button class="btn ghost sm" id="alChk" style="flex:1">${esc(t('alerts_check'))}</button></div>`;
