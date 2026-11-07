@@ -538,7 +538,7 @@ const T={
     intl_title:'🌍 Σύγκριση με άλλες χώρες',intl_loading:'Αναζήτηση…',
     intl_none:'Δεν βρέθηκαν αντίστοιχα προϊόντα σε Amazon ευρωζώνης.',
     intl_cheapest:'φθηνότερη',intl_view:'Προβολή ↗',intl_candidates:'υποψήφια',
-    intl_net:'καθαρή',intl_landed:'τελικό ≈',intl_customs:'δασμοί',intl_rate:'ισοτιμία',intl_approx:'κατά προσέγγιση',
+    intl_net:'καθαρή',intl_landed:'τελικό ≈',intl_customs:'δασμοί',intl_rate:'ισοτιμία',intl_approx:'κατά προσέγγιση',intl_suspect:'πιθανό λάθος',
     copied:'Αντιγράφηκε στο πρόχειρο!',
     sort_grid_def:'Ταξινόμηση: προεπιλογή',sort_grid_pasc:'Τιμή ↑',sort_grid_pdesc:'Τιμή ↓',sort_grid_rating:'Αξιολόγηση ↓',
     alerts_title:'🔔 Alerts τιμής',alerts_none:'Δεν υπάρχουν αποθηκευμένα alerts.',
@@ -605,7 +605,7 @@ const T={
     intl_title:'🌍 Compare with other countries',intl_loading:'Searching…',
     intl_none:'No matching products found on eurozone Amazons.',
     intl_cheapest:'cheapest',intl_view:'View ↗',intl_candidates:'candidates',
-    intl_net:'net',intl_landed:'landed ≈',intl_customs:'customs',intl_rate:'rate',intl_approx:'approx',
+    intl_net:'net',intl_landed:'landed ≈',intl_customs:'customs',intl_rate:'rate',intl_approx:'approx',intl_suspect:'likely wrong',
     copied:'Copied to clipboard!',
     sort_grid_def:'Sort: default',sort_grid_pasc:'Price ↑',sort_grid_pdesc:'Price ↓',sort_grid_rating:'Rating ↓',
     alerts_title:'🔔 Price alerts',alerts_none:'No saved alerts.',
@@ -1341,21 +1341,30 @@ $('#shIntl').onclick=async()=>{
   const res=(d&&d.results)||[];
   if(!res.length){dialogHTML(t('intl_title'),`<div class="empty"><div class="big">🌍</div>${esc(t('intl_none'))}</div>`
     +((d.diagnostics||[]).length?`<div style="color:var(--mut2);font:500 11px Inter;margin-top:10px">${esc((d.diagnostics||[]).join(' · '))}</div>`:''));return;}
-  const vals=res.map(r=>r.price);const mn=Math.min(...vals),mx=Math.max(...vals);
+  // ⚠ εντοπισμός «ύποπτων» match (π.χ. αξεσουάρ): τιμή < 45% της διαμέσου
+  const sorted=res.map(r=>r.price).filter(v=>typeof v==='number').sort((a,b)=>a-b);
+  const med=sorted.length?sorted[Math.floor(sorted.length/2)]:0;
+  res.forEach(r=>{r._suspect=(med>0&&r.price<0.45*med);});
+  const valid=res.filter(r=>!r._suspect);
+  const vals=(valid.length?valid:res).map(r=>r.price);
+  const mn=Math.min(...vals),mx=Math.max(...vals);
   const avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+  const minValid=valid.length?Math.min(...valid.map(r=>r.price)):null;
+  res.forEach(r=>{r._best=(!r._suspect&&minValid!=null&&r.price===minValid);});
   const chip=(l,v)=>`<div style="flex:1;min-width:84px;text-align:center;padding:8px 6px;background:var(--panel2,rgba(255,255,255,.03));border:1px solid var(--line,rgba(255,255,255,.08));border-radius:10px"><div style="color:var(--mut2);font:600 10px Inter;letter-spacing:.3px;text-transform:uppercase">${l}</div><div style="color:var(--ink);font:700 15px Inter;margin-top:3px">${v}</div></div>`;
   const summary=`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">`
     +chip(`🌍 ${esc(t('eu_countries'))}`,String(res.length))+chip(esc(t('eu_min')),euro(mn))
     +chip(esc(t('eu_avg')),euro(avg))+chip(esc(t('eu_max')),euro(mx))+`</div>`;
   const rows=res.map(r=>{
-    const best=r.cheapest?` <span class="tag star" style="background:#34d39933;color:#34d399">${esc(t('intl_cheapest'))}</span>`:'';
-    const diff=(!r.cheapest&&r.diff_pct)?` <small style="color:var(--mut2)">+${r.diff_pct}%</small>`:'';
+    const best=r._best?` <span class="tag star" style="background:#34d39933;color:#34d399">${esc(t('intl_cheapest'))}</span>`:'';
+    const susp=r._suspect?` <span class="tag" style="background:#f8717122;color:#f87171">⚠︎ ${esc(t('intl_suspect'))}</span>`:'';
+    const diff=(!r._best&&!r._suspect&&minValid)?` <small style="color:var(--mut2)">+${Math.round((r.price-minValid)/minValid*100)}%</small>`:'';
     const ttl=r.home?'':`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;color:var(--mut);font:500 11px Inter">${esc(r.title||'')}</div>`;
     const link=r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="font:600 11px Inter">${esc(t('intl_view'))}</a>`:'';
     const cust=r.customs?` <span style="color:#f59e0b">⚠︎ ${esc(t('intl_customs'))}</span>`:'';
     const sub=(r.net!=null)?`<div style="font:500 11px Inter;color:var(--mut2);margin-top:2px">${esc(t('intl_net'))} ${euro(r.net)} · ${esc(t('intl_landed'))} <b style="color:var(--mut)">${euro(r.landed)}</b>${cust}</div>`:'';
     const localTxt=(r.currency==='GBP'&&r.price_local!=null)?`<small style="color:var(--mut2);display:block">£${r.price_local}</small>`:'';
-    return `<div class="offer${r.cheapest?' best':''}"><div class="shop" style="min-width:0">${r.flag} ${esc(r.country)}${best}${diff}${ttl}${sub}${link}</div><div class="op">${euro(r.price)}${localTxt}</div></div>`;
+    return `<div class="offer${r._best?' best':''}"${r._suspect?' style="opacity:.7"':''}><div class="shop" style="min-width:0">${r.flag} ${esc(r.country)}${best}${susp}${diff}${ttl}${sub}${link}</div><div class="op">${euro(r.price)}${localTxt}</div></div>`;
   }).join('');
   const rateTxt=d.rate?`<div style="color:var(--mut2);font:500 11px Inter;margin-top:6px">${esc(t('intl_rate'))}: £1 = ${euro(d.rate)}${d.rate_live?'':' ('+esc(t('intl_approx'))+')'}</div>`:'';
   dialogHTML(t('intl_title'),summary+`<div class="sh-list">${rows}</div>`
