@@ -1,5 +1,12 @@
 # Σύγκριση Τιμών / Price Compare — v0.39
 
+> **Greek price & rating comparison across eshops, supermarkets and fuel
+> stations** — a desktop (Tkinter/pywebview) & Docker web app. Sources:
+> BestPrice, Skroutz, Public, e-shop.gr, Amazon EU, the state supermarket API
+> (posokanei.gov.gr) and fuel prices. Features price history & intelligence,
+> price alerts/watchlist, a supermarket basket optimizer, cross-country landed
+> cost, ratings, photos and CSV export.
+
 Μοντέρνο HTML/CSS/JS περιβάλλον (dark/neon) με backend Python. Τρέχει **σαν
 εφαρμογή σε δικό της παράθυρο** (pywebview) ή **στον browser**.
 
