@@ -572,7 +572,8 @@ const T={
     cartClear_t:'Άδειασμα καλαθιού',cartOpt_tt:'Φθηνότερη αλυσίδα για το καλάθι',
     qtym_t:'Μείωση ποσότητας',qtyp_t:'Αύξηση ποσότητας',rm_t:'Αφαίρεση',adel_t:'Διαγραφή',
     cat_hint:(c)=>`Αναζήτηση στην κατηγορία: ${c}`,chip_hint:(s)=>`Πηγή: ${s} — κλικ για εναλλαγή`,
-    lang_el_t:'Ελληνικά',lang_en_t:'Αγγλικά',help_t:'Οδηγίες χρήσης',help_title:'❓ Οδηγίες χρήσης'
+    lang_el_t:'Ελληνικά',lang_en_t:'Αγγλικά',help_t:'Οδηγίες χρήσης',help_title:'❓ Οδηγίες χρήσης',
+    intro_title:'👋 Καλώς ήρθες!',intro_ok:'Ξεκίνα!'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -651,7 +652,8 @@ const T={
     cartClear_t:'Empty the basket',cartOpt_tt:'Cheapest chain for your basket',
     qtym_t:'Decrease quantity',qtyp_t:'Increase quantity',rm_t:'Remove',adel_t:'Delete',
     cat_hint:(c)=>`Search in category: ${c}`,chip_hint:(s)=>`Source: ${s} — click to toggle`,
-    lang_el_t:'Greek',lang_en_t:'English',help_t:'How to use',help_title:'❓ How to use'
+    lang_el_t:'Greek',lang_en_t:'English',help_t:'How to use',help_title:'❓ How to use',
+    intro_title:'👋 Welcome!',intro_ok:'Get started!'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -1596,6 +1598,37 @@ const HELP={
 };
 $('#helpBtn').onclick=()=>dialogHTML(t('help_title'),HELP[LANG]||HELP.el);
 
+/* ---------- 👋 Intro (μόνο την πρώτη φορά) ---------- */
+const INTRO={
+  el:`<div class="hlp">
+    <p class="lead">Σύγκρινε τιμές & αξιολογήσεις από ελληνικά eshops, σούπερ μάρκετ και καύσιμα — όλα σε ένα.</p>
+    <h4>Σε 10 δευτερόλεπτα</h4>
+    • Διάλεξε <b>κατηγορία</b>, γράψε προϊόν, <kbd>Enter</kbd>.<br>
+    • Κλικ σε προϊόν → καταστήματα, τιμές, <b>⭐ ευφυΐα τιμής</b>, <b>🌍 άλλες χώρες</b>.<br>
+    • <b>🛒 Καλάθι</b> σούπερ μάρκετ → «Βελτιστοποίηση» για τη φθηνότερη αλυσίδα.<br>
+    • <b>🔔</b> ειδοποιήσεις τιμής · <b>⛽</b> καύσιμα ανά πρατήριο.
+    <p style="margin:12px 0 0;color:var(--mut2)">💡 Πλήρης οδηγός όποτε θες: κουμπί <b>❓</b> πάνω δεξιά.</p>
+    <div style="margin-top:16px;text-align:right"><button class="btn primary" id="introOk">Ξεκίνα!</button></div>
+  </div>`,
+  en:`<div class="hlp">
+    <p class="lead">Compare prices & ratings from Greek eshops, supermarkets and fuel — all in one.</p>
+    <h4>In 10 seconds</h4>
+    • Pick a <b>category</b>, type a product, <kbd>Enter</kbd>.<br>
+    • Click a product → shops, prices, <b>⭐ price intelligence</b>, <b>🌍 other countries</b>.<br>
+    • <b>🛒 Supermarket basket</b> → «Optimize» for the cheapest chain.<br>
+    • <b>🔔</b> price alerts · <b>⛽</b> fuel per station.
+    <p style="margin:12px 0 0;color:var(--mut2)">💡 Full guide anytime: the <b>❓</b> button, top-right.</p>
+    <div style="margin-top:16px;text-align:right"><button class="btn primary" id="introOk">Get started!</button></div>
+  </div>`
+};
+function maybeIntro(){
+  if(load('gpc_seen_intro',false))return;                 // εμφανίζεται μόνο την πρώτη φορά
+  save('gpc_seen_intro',true);                            // μαρκάρισμα μόλις εμφανιστεί (όπως κι αν κλείσει)
+  const o=dialogHTML(t('intro_title'),INTRO[LANG]||INTRO.el);
+  const ok=o.querySelector('#introOk');
+  if(ok)ok.onclick=()=>{try{o.remove()}catch(e){}};
+}
+
 /* ---------- keyboard shortcuts ---------- */
 document.addEventListener('keydown',e=>{
   const tgt=e.target, tag=((tgt&&tgt.tagName)||'').toLowerCase();
@@ -1621,6 +1654,7 @@ setLang(LANG);
 setMode(mode);
 renderHistory();cartCount();updateCmp();
 refreshAlertBadge();
+setTimeout(maybeIntro,500);
 (async()=>{try{const v=await api('/api/version');if(v&&v.version)$('#verTag').textContent='v'+v.version;}catch(e){}})();
 </script>
 </body>
