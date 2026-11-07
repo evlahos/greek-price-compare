@@ -57,6 +57,12 @@ body{
 .intel .stats{display:flex;gap:14px;flex-wrap:wrap;font:600 12px Inter;color:var(--mut)}
 .intel .stats b{color:var(--ink);font-weight:800}
 .intel .spk{margin-top:9px}
+.hlp{font:500 13px/1.7 Inter;color:var(--ink)}
+.hlp h4{margin:14px 0 4px;font:800 13px Inter;color:var(--ink)}
+.hlp h4:first-of-type{margin-top:0}
+.hlp .lead{color:var(--mut);margin:0 0 6px}
+.hlp kbd{display:inline-block;background:rgba(127,127,127,.18);border:1px solid var(--stroke);
+  border-radius:6px;padding:1px 6px;font:700 11px Inter;color:var(--ink)}
 .seg{display:flex;gap:4px;padding:5px;border:1px solid var(--stroke);border-radius:22px;
   background:var(--panel);backdrop-filter:blur(14px);margin-left:auto;flex-wrap:wrap;justify-content:center}
 .seg button{border:0;background:transparent;color:var(--mut);font:600 13px Inter;padding:9px 16px;
@@ -356,6 +362,7 @@ a{color:var(--cy);text-decoration:none}
     <div class="langsw" id="langsw">
       <button data-l="el" data-i18n-title="lang_el_t">ΕΛ</button><button data-l="en" data-i18n-title="lang_en_t">EN</button>
     </div>
+    <button class="iconbtn" id="helpBtn" data-i18n-title="help_t">❓</button>
     <button class="iconbtn" id="themeBtn">🌙</button>
   </div>
 
@@ -565,7 +572,7 @@ const T={
     cartClear_t:'Άδειασμα καλαθιού',cartOpt_tt:'Φθηνότερη αλυσίδα για το καλάθι',
     qtym_t:'Μείωση ποσότητας',qtyp_t:'Αύξηση ποσότητας',rm_t:'Αφαίρεση',adel_t:'Διαγραφή',
     cat_hint:(c)=>`Αναζήτηση στην κατηγορία: ${c}`,chip_hint:(s)=>`Πηγή: ${s} — κλικ για εναλλαγή`,
-    lang_el_t:'Ελληνικά',lang_en_t:'Αγγλικά'
+    lang_el_t:'Ελληνικά',lang_en_t:'Αγγλικά',help_t:'Οδηγίες χρήσης',help_title:'❓ Οδηγίες χρήσης'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -644,7 +651,7 @@ const T={
     cartClear_t:'Empty the basket',cartOpt_tt:'Cheapest chain for your basket',
     qtym_t:'Decrease quantity',qtyp_t:'Increase quantity',rm_t:'Remove',adel_t:'Delete',
     cat_hint:(c)=>`Search in category: ${c}`,chip_hint:(s)=>`Source: ${s} — click to toggle`,
-    lang_el_t:'Greek',lang_en_t:'English'
+    lang_el_t:'Greek',lang_en_t:'English',help_t:'How to use',help_title:'❓ How to use'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -1543,6 +1550,51 @@ function setTheme(th){
   const b=$('#themeBtn'); if(b){b.textContent=THEME==='light'?'☀':'🌙'; b.title=t('theme_t');}
 }
 $('#themeBtn').onclick=()=>setTheme(THEME==='light'?'dark':'light');
+
+/* ---------- ❓ Οδηγίες χρήσης ---------- */
+const HELP={
+  el:`<div class="hlp">
+    <p class="lead">Σύγκριση τιμών & αξιολογήσεων από ελληνικά eshops, σούπερ μάρκετ και καύσιμα.</p>
+    <h4>1. Κατηγορία & αναζήτηση</h4>
+    Διάλεξε κατηγορία (Τεχνολογία, Σούπερ Μάρκετ, Βιβλία, Καύσιμα…), γράψε προϊόν και πάτα <kbd>Enter</kbd>. Με τα chips «Πηγές» ανάβεις/σβήνεις πηγές. Μπορείς και να επικολλήσεις σύνδεσμο προϊόντος από eshop και «Φόρτωση».
+    <h4>2. Αποτελέσματα</h4>
+    Κλικ σε προϊόν για καταστήματα & τιμές. Με «Φίλτρα» ορίζεις εύρος τιμής, ελάχιστη αξιολόγηση, μόνο διαθέσιμα, και ταξινόμηση.
+    <h4>3. Κάρτα προϊόντος</h4>
+    • <b>⭐ Ευφυΐα τιμής</b>: Χαμηλό / Διάμεσος / Τώρα + σήμανση (✅ ιστορικό χαμηλό, 🔥 προσφορά).<br>
+    • <b>📈 Ιστορικό</b> τιμής, <b>🎥 Βίντεο</b>, <b>🧠 Απόφαση</b> αγοράς, <b>🔔 Alert</b> τιμής.<br>
+    • <b>🌍 Άλλες χώρες</b>: σύγκριση με Amazon Ευρώπης + εκτ. <b>τελικό κόστος</b> (καθαρή τιμή −ΦΠΑ, ελληνικό ΦΠΑ, μεταφορικά· 🇬🇧 με δασμούς).<br>
+    • <b>📊 Τοπικό ιστορικό</b>, <b>📋 Αντιγραφή</b> τιμής.
+    <h4>4. 🔔 Watchlist</h4>
+    Οι ειδοποιήσεις σου με μίνι-γράφημα και % μεταβολή. «Έλεγχος τώρα» ανανεώνει τις τρέχουσες τιμές.
+    <h4>5. 🛒 Καλάθι & Βελτιστοποίηση</h4>
+    Πρόσθεσε προϊόντα σούπερ μάρκετ στο καλάθι (κουμπί «＋» στις προσφορές) και πάτα <b>«Βελτιστοποίηση καλαθιού»</b>: σου λέει σε ποια αλυσίδα βγαίνει φθηνότερο όλο το σύνολο (🏆 πλήρης κάλυψη).
+    <h4>6. ⚖ Σύγκριση & ⛽ Καύσιμα</h4>
+    Σύγκρινε επιλεγμένα προϊόντα δίπλα-δίπλα. Στα Καύσιμα: τιμές ανά νομό & πρατήριο, μέσοι όροι, ποινές ΑΑΔΕ.
+    <h4>⌨ Συντομεύσεις</h4>
+    <kbd>/</kbd> εστίαση αναζήτησης · <kbd>Enter</kbd> αναζήτηση · <kbd>←</kbd>/<kbd>→</kbd> προηγ./επόμενο προϊόν · <kbd>Esc</kbd> κλείσιμο · 🌙 θέμα · ΕΛ/EN γλώσσα.
+  </div>`,
+  en:`<div class="hlp">
+    <p class="lead">Compare prices & ratings from Greek eshops, supermarkets and fuel stations.</p>
+    <h4>1. Category & search</h4>
+    Pick a category (Technology, Supermarket, Books, Fuel…), type a product and press <kbd>Enter</kbd>. Use the «Sources» chips to toggle sources. You can also paste a product link from an eshop and «Load».
+    <h4>2. Results</h4>
+    Click a product for shops & prices. «Filters» set price range, minimum rating, in-stock only, and sorting.
+    <h4>3. Product card</h4>
+    • <b>⭐ Price intelligence</b>: Low / Median / Now + badge (✅ all-time low, 🔥 deal).<br>
+    • <b>📈 History</b>, <b>🎥 Videos</b>, <b>🧠 Decision</b>, <b>🔔 Price alert</b>.<br>
+    • <b>🌍 Other countries</b>: compare with Amazon Europe + est. <b>landed cost</b> (net price −VAT, Greek VAT, shipping; 🇬🇧 with customs).<br>
+    • <b>📊 Local history</b>, <b>📋 Copy</b> price.
+    <h4>4. 🔔 Watchlist</h4>
+    Your alerts with mini-chart and % change. «Check now» refreshes current prices.
+    <h4>5. 🛒 Basket & Optimize</h4>
+    Add supermarket products to the basket («＋» on offers) and press <b>«Optimize basket»</b>: it tells you which chain is cheapest for the whole basket (🏆 full coverage).
+    <h4>6. ⚖ Compare & ⛽ Fuel</h4>
+    Compare selected products side by side. Fuel: prices per prefecture & station, averages, AADE penalties.
+    <h4>⌨ Shortcuts</h4>
+    <kbd>/</kbd> focus search · <kbd>Enter</kbd> search · <kbd>←</kbd>/<kbd>→</kbd> prev/next product · <kbd>Esc</kbd> close · 🌙 theme · EL/EN language.
+  </div>`
+};
+$('#helpBtn').onclick=()=>dialogHTML(t('help_title'),HELP[LANG]||HELP.el);
 
 /* ---------- keyboard shortcuts ---------- */
 document.addEventListener('keydown',e=>{
