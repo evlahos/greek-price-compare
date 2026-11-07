@@ -452,6 +452,7 @@ a{color:var(--cy);text-decoration:none}
       <button class="btn ghost sm" id="cartCsv" style="flex:1" data-i18n="cart_csv"></button>
       <button class="btn ghost sm" id="cartClear" style="flex:1" data-i18n="cart_clear"></button>
     </div>
+    <button class="btn primary sm" id="cartOpt" style="width:100%;margin-top:8px;display:none" data-i18n="opt_btn"></button>
   </div>
 </aside>
 
@@ -537,6 +538,7 @@ const T={
     intl_title:'🌍 Σύγκριση με άλλες χώρες',intl_loading:'Αναζήτηση…',
     intl_none:'Δεν βρέθηκαν αντίστοιχα προϊόντα σε Amazon ευρωζώνης.',
     intl_cheapest:'φθηνότερη',intl_view:'Προβολή ↗',intl_candidates:'υποψήφια',
+    intl_net:'καθαρή',intl_landed:'τελικό ≈',intl_customs:'δασμοί',intl_rate:'ισοτιμία',intl_approx:'κατά προσέγγιση',
     copied:'Αντιγράφηκε στο πρόχειρο!',
     sort_grid_def:'Ταξινόμηση: προεπιλογή',sort_grid_pasc:'Τιμή ↑',sort_grid_pdesc:'Τιμή ↓',sort_grid_rating:'Αξιολόγηση ↓',
     alerts_title:'🔔 Alerts τιμής',alerts_none:'Δεν υπάρχουν αποθηκευμένα alerts.',
@@ -546,7 +548,12 @@ const T={
     log_none:'Δεν υπάρχει ακόμη τοπικό ιστορικό γι’ αυτό. Συμπληρώνεται καθώς κάνεις αναζητήσεις.',
     intel_atl:'✅ Ιστορικό χαμηλό',intel_low_days:'✅ Χαμηλότερη τιμή {n} ημερών',
     intel_deal:'🔥 Προσφορά',intel_high:'⏳ Ακριβότερη τώρα',
-    intel_lbl_low:'Χαμηλό',intel_lbl_med:'Διάμεσος',intel_lbl_now:'Τώρα',wl_chg:'μεταβ.'
+    intel_lbl_low:'Χαμηλό',intel_lbl_med:'Διάμεσος',intel_lbl_now:'Τώρα',wl_chg:'μεταβ.',
+    opt_btn:'🛒 Βελτιστοποίηση καλαθιού',opt_title:'🛒 Φθηνότερη αλυσίδα για το καλάθι',
+    opt_none:'Πρόσθεσε προϊόντα σούπερ μάρκετ στο καλάθι πρώτα.',
+    opt_items:'είδη',opt_missing:'λείπουν',opt_save:'💰 κερδίζεις έως',
+    opt_for:(n)=>`Σύνολο για ${n} είδη · διαθεσιμότητα ανά αλυσίδα`,
+    opt_note:'Σύνολο = άθροισμα τιμών των ειδών ανά αλυσίδα. Αλυσίδες με μερική κάλυψη δείχνουν πόσα από τα είδη βρέθηκαν (🏆 = φθηνότερη με πλήρη κάλυψη).'
   },
   en:{
     appName:'PRICE <b>COMPARE</b>',
@@ -598,6 +605,7 @@ const T={
     intl_title:'🌍 Compare with other countries',intl_loading:'Searching…',
     intl_none:'No matching products found on eurozone Amazons.',
     intl_cheapest:'cheapest',intl_view:'View ↗',intl_candidates:'candidates',
+    intl_net:'net',intl_landed:'landed ≈',intl_customs:'customs',intl_rate:'rate',intl_approx:'approx',
     copied:'Copied to clipboard!',
     sort_grid_def:'Sort: default',sort_grid_pasc:'Price ↑',sort_grid_pdesc:'Price ↓',sort_grid_rating:'Rating ↓',
     alerts_title:'🔔 Price alerts',alerts_none:'No saved alerts.',
@@ -607,7 +615,12 @@ const T={
     log_none:'No local history for this yet. It fills up as you run searches.',
     intel_atl:'✅ All-time low',intel_low_days:'✅ Lowest in {n} days',
     intel_deal:'🔥 Deal',intel_high:'⏳ Pricey now',
-    intel_lbl_low:'Low',intel_lbl_med:'Median',intel_lbl_now:'Now',wl_chg:'chg'
+    intel_lbl_low:'Low',intel_lbl_med:'Median',intel_lbl_now:'Now',wl_chg:'chg',
+    opt_btn:'🛒 Optimize basket',opt_title:'🛒 Cheapest chain for your basket',
+    opt_none:'Add supermarket products to the basket first.',
+    opt_items:'items',opt_missing:'missing',opt_save:'💰 save up to',
+    opt_for:(n)=>`Total for ${n} items · availability per chain`,
+    opt_note:'Total = sum of item prices per chain. Chains with partial coverage show how many of the items were found (🏆 = cheapest with full coverage).'
   }
 };
 let LANG=load('gpc_lang',null)||((navigator.language||'el').toLowerCase().startsWith('en')?'en':'el');
@@ -1339,10 +1352,14 @@ $('#shIntl').onclick=async()=>{
     const diff=(!r.cheapest&&r.diff_pct)?` <small style="color:var(--mut2)">+${r.diff_pct}%</small>`:'';
     const ttl=r.home?'':`<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px;color:var(--mut);font:500 11px Inter">${esc(r.title||'')}</div>`;
     const link=r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" style="font:600 11px Inter">${esc(t('intl_view'))}</a>`:'';
-    return `<div class="offer${r.cheapest?' best':''}"><div class="shop" style="min-width:0">${r.flag} ${esc(r.country)}${best}${diff}${ttl}${link}</div><div class="op">${euro(r.price)}</div></div>`;
+    const cust=r.customs?` <span style="color:#f59e0b">⚠︎ ${esc(t('intl_customs'))}</span>`:'';
+    const sub=(r.net!=null)?`<div style="font:500 11px Inter;color:var(--mut2);margin-top:2px">${esc(t('intl_net'))} ${euro(r.net)} · ${esc(t('intl_landed'))} <b style="color:var(--mut)">${euro(r.landed)}</b>${cust}</div>`:'';
+    const localTxt=(r.currency==='GBP'&&r.price_local!=null)?`<small style="color:var(--mut2);display:block">£${r.price_local}</small>`:'';
+    return `<div class="offer${r.cheapest?' best':''}"><div class="shop" style="min-width:0">${r.flag} ${esc(r.country)}${best}${diff}${ttl}${sub}${link}</div><div class="op">${euro(r.price)}${localTxt}</div></div>`;
   }).join('');
+  const rateTxt=d.rate?`<div style="color:var(--mut2);font:500 11px Inter;margin-top:6px">${esc(t('intl_rate'))}: £1 = ${euro(d.rate)}${d.rate_live?'':' ('+esc(t('intl_approx'))+')'}</div>`:'';
   dialogHTML(t('intl_title'),summary+`<div class="sh-list">${rows}</div>`
-    +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(d.note||'')}</div>`);
+    +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:12px">${esc(d.note||'')}</div>`+rateTxt);
 };
 
 /* ---------- 📋 αντιγραφή τιμής ---------- */
@@ -1377,8 +1394,13 @@ $('#cartBtn').onclick=()=>{renderCart();openCart(true)};
 $('#cartBack').onclick=()=>openCart(false);$('#cartScrim').onclick=()=>openCart(false);
 function addToCart(o){if(!o)return;const title=curProduct?.title||'';const shop=o.merchant_name||o.source||t('store_default');
   let price=o.item_price!=null?o.item_price:o.total_price;let url=o.offer_url||(curProduct&&(curProduct.product_url))||'';
+  // για σούπερ μάρκετ: κράτα τιμές ΑΝΑ αλυσίδα για τον βελτιστοποιητή καλαθιού
+  let chains=null;
+  if(curProduct&&curProduct._sm_offers){chains={};curProduct._sm_offers.forEach(x=>{
+    if(x.merchant_name&&typeof x.item_price==='number')chains[x.merchant_name]=x.item_price;});}
   const f=cart.find(c=>c.title===title&&c.shop===shop&&c.url===url);
-  if(f)f.qty++;else cart.push({title,shop,price,qty:1,url});save('gpc_cart',cart);cartCount();
+  if(f){f.qty++;if(chains)f.chains=chains;}else cart.push({title,shop,price,qty:1,url,chains});
+  save('gpc_cart',cart);cartCount();
   toast(t('added_cart'),'🛒');if($('#cart').classList.contains('on'))renderCart()}
 function cartCount(){const n=cart.reduce((s,c)=>s+c.qty,0);$('#cartCnt').textContent=n}
 function renderCart(){
@@ -1390,9 +1412,39 @@ function renderCart(){
       <div class="cp">${euro(line)}</div><button class="rm" data-r="${i}">🗑</button></div>`;
   }).join('')||`<div class="empty"><div class="big">🛒</div>${esc(t('cart_empty'))}</div>`;
   $('#cartTotal').textContent=euro(tot);
+  const smN=cart.filter(c=>c.chains&&Object.keys(c.chains).length).length;
+  $('#cartOpt').style.display=smN>=1?'':'none';
   box.querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{const i=+b.dataset.i;cart[i].qty=Math.max(1,cart[i].qty+(+b.dataset.d));save('gpc_cart',cart);renderCart();cartCount()});
   box.querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{cart.splice(+b.dataset.r,1);save('gpc_cart',cart);renderCart();cartCount()});
 }
+// 🛒 Βελτιστοποιητής καλαθιού σούπερ μάρκετ: φθηνότερη αλυσίδα για όλο το καλάθι.
+function optimizeBasket(){
+  const items=cart.filter(c=>c.chains&&Object.keys(c.chains).length);
+  if(!items.length)return toast(t('opt_none'),'🛒');
+  const chainSet={};items.forEach(it=>Object.keys(it.chains).forEach(ch=>chainSet[ch]=true));
+  const rows=Object.keys(chainSet).map(ch=>{
+    let total=0,have=0;const missing=[];
+    items.forEach(it=>{const p=it.chains[ch];if(typeof p==='number'){total+=p*it.qty;have++;}else missing.push(it.title);});
+    return{chain:ch,total,have,missing,n:items.length};
+  });
+  // πλήρης κάλυψη πρώτα, μετά φθηνότερο σύνολο
+  rows.sort((a,b)=>(b.have-a.have)||(a.total-b.total));
+  const full=rows.filter(r=>r.have===r.n);
+  const best=full[0]||rows[0];
+  const worstFull=full.length?full[full.length-1]:null;
+  const save=(worstFull&&best&&worstFull.total>best.total)?worstFull.total-best.total:0;
+  const body=rows.map(r=>{
+    const isBest=r===best;
+    const cover=r.have<r.n?` <small style="color:#f59e0b">${r.have}/${r.n} ${esc(t('opt_items'))}</small>`:'';
+    const miss=r.missing.length?`<div style="color:var(--mut2);font:500 11px Inter;margin-top:2px">${esc(t('opt_missing'))}: ${esc(r.missing.slice(0,4).join(', '))}${r.missing.length>4?'…':''}</div>`:'';
+    return `<div class="offer${isBest?' best':''}"><div class="shop" style="min-width:0">
+      ${isBest?'🏆 ':''}${esc(r.chain)}${cover}${miss}</div><div class="op">${euro(r.total)}</div></div>`;
+  }).join('');
+  const head=`<div style="margin-bottom:10px;font:600 13px Inter;color:var(--mut)">${esc(t('opt_for')(items.length))}${save>0?` · <span style="color:#34d399">${esc(t('opt_save'))} ${euro(save)}</span>`:''}</div>`;
+  dialogHTML(t('opt_title'),head+`<div class="sh-list">${body}</div>`
+    +`<div style="color:var(--mut2);font:500 11px Inter;margin-top:10px">${esc(t('opt_note'))}</div>`);
+}
+$('#cartOpt').onclick=optimizeBasket;
 $('#cartClear').onclick=()=>{if(cart.length&&confirm(t('confirm_clear'))){cart=[];save('gpc_cart',cart);renderCart();cartCount()}};
 $('#cartCsv').onclick=()=>{if(!cart.length)return;let tot=0;const rows=[t('csv_head').slice()];
   cart.forEach(c=>{const p=parseFloat(c.price),l=isFinite(p)?p*c.qty:'';if(l!=='')tot+=l;

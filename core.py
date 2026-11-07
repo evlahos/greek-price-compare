@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.38"
+VERSION = "0.39"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1807,13 +1807,37 @@ def amazon_search(query, limit=25):
 # σε πραγματική αναζήτηση ανά domain· παίρνει το πρώτο αποτέλεσμα (best-effort match),
 # ώστε ο χρήστης να επιβεβαιώνει με τίτλο/εικόνα/σύνδεσμο. ΟΧΙ mock δεδομένα.
 # ─────────────────────────────────────────────────────────────────────────────
+# code, name, flag, domain, currency, vat%, εκτ. μεταφορικά προς Ελλάδα (€)
 _INTL_DOMAINS = [
-    ("de", "Γερμανία", "🇩🇪", "amazon.de", "de-DE"),
-    ("fr", "Γαλλία", "🇫🇷", "amazon.fr", "fr-FR"),
-    ("it", "Ιταλία", "🇮🇹", "amazon.it", "it-IT"),
-    ("es", "Ισπανία", "🇪🇸", "amazon.es", "es-ES"),
+    ("de", "Γερμανία", "🇩🇪", "amazon.de", "EUR", 19, 10),
+    ("fr", "Γαλλία", "🇫🇷", "amazon.fr", "EUR", 20, 12),
+    ("it", "Ιταλία", "🇮🇹", "amazon.it", "EUR", 22, 12),
+    ("es", "Ισπανία", "🇪🇸", "amazon.es", "EUR", 21, 12),
+    ("uk", "Ην. Βασίλειο", "🇬🇧", "amazon.co.uk", "GBP", 20, 15),
 ]
+_GR_VAT = 24
 _INTL_NOISE_RE = re.compile(r"[\(\[].*?[\)\]]|[«»\"'“”]", re.S)
+_GBP_EUR_CACHE = {"rate": None, "ts": 0.0}
+
+
+def _gbp_to_eur():
+    """Ζωντανή ισοτιμία GBP→EUR (ECB μέσω frankfurter.app), με cache 6h.
+    Επιστρέφει (rate, is_live). Fallback ~1.17 αν το δίκτυο δεν φτάνει."""
+    import time as _t
+    import json as _json
+    import urllib.request as _url
+    now = _t.time()
+    if _GBP_EUR_CACHE["rate"] and now - _GBP_EUR_CACHE["ts"] < 21600:
+        return _GBP_EUR_CACHE["rate"], True
+    try:
+        with _url.urlopen("https://api.frankfurter.app/latest?from=GBP&to=EUR",
+                          timeout=8) as r:
+            d = _json.loads(r.read().decode("utf-8"))
+        rate = float(d["rates"]["EUR"])
+        _GBP_EUR_CACHE.update(rate=rate, ts=now)
+        return rate, True
+    except Exception:
+        return (_GBP_EUR_CACHE["rate"] or 1.17), False
 
 
 def _amazon_parse_js(domain):
@@ -1830,8 +1854,15 @@ def _intl_clean_query(name):
     return " ".join(toks[:9]).strip() or (name or "").strip()
 
 
-def _amazon_domain_top(domain, query, limit=6):
-    """Το φθηνότερο αποτέλεσμα με τιμή από ένα Amazon domain (best-effort match)."""
+def _match_score(title, tokens):
+    """Πόσα από τα tokens του ερωτήματος εμφανίζονται στον τίτλο (case-insensitive)."""
+    tl = (title or "").lower()
+    return sum(1 for tk in tokens if tk and tk in tl)
+
+
+def _amazon_domain_top(domain, query, tokens, limit=8):
+    """Καλύτερη αντιστοιχία (όχι απλώς η φθηνότερη) από ένα Amazon domain:
+    μέγιστο token-overlap με το ερώτημα, μετά φθηνότερη τιμή."""
     rows, diag = jsonld_itemlist_search(
         AMAZON_LABEL, "https://www." + domain + "/s?k={q}", query, limit,
         wait_selector='div[data-component-type="s-search-result"]',
@@ -1839,31 +1870,54 @@ def _amazon_domain_top(domain, query, limit=6):
     priced = [r for r in (rows or []) if to_float(r.get("price_from"))]
     if not priced:
         return None, diag
-    priced.sort(key=lambda r: to_float(r.get("price_from")))
+    priced.sort(key=lambda r: (-_match_score(r.get("title"), tokens),
+                               to_float(r.get("price_from"))))
     top = priced[0]
     return {"title": top.get("title") or "", "price": to_float(top.get("price_from")),
             "url": top.get("product_url") or "", "image": top.get("image") or "",
             "candidates": len(priced)}, diag
 
 
+def _intl_enrich(entry, vat, ship, rate):
+    """Προσθέτει καθαρή τιμή (−ΦΠΑ), τιμή σε € και εκτίμηση τελικού κόστους Ελλάδας."""
+    cur = entry.get("currency", "EUR")
+    price_local = entry["price"]
+    price_eur = price_local * rate if cur == "GBP" else price_local
+    net = price_eur / (1 + vat / 100.0)                 # καθαρή (χωρίς τοπικό ΦΠΑ)
+    landed = net * (1 + _GR_VAT / 100.0) + (ship or 0)  # εκτ. με ελληνικό ΦΠΑ + μεταφορικά
+    entry["price_local"] = round(price_local, 2)
+    entry["price"] = round(price_eur, 2)                # το € είναι το συγκρίσιμο μέγεθος
+    entry["net"] = round(net, 2)
+    entry["vat"] = vat
+    entry["landed"] = round(landed, 2)
+    entry["ship"] = ship
+    if entry.get("code") == "uk":
+        entry["customs"] = True                          # εκτός ΕΕ → πιθανοί δασμοί/τελωνείο
+    return entry
+
+
 def compare_international(name, gr_price=None, gr_url=None):
-    """Διεθνής σύγκριση τιμών για ένα προϊόν. Τρέχει πραγματική αναζήτηση στα Amazon
-    ευρωζώνης (.de/.fr/.it/.es) παράλληλα και προσθέτει την ελληνική τιμή (αν δοθεί).
-    Επιστρέφει {query, results[], note, diagnostics[]}. Όλες οι τιμές σε EUR."""
+    """Διεθνής σύγκριση τιμών με εκτίμηση ΤΕΛΙΚΟΥ κόστους Ελλάδας. Πραγματική αναζήτηση
+    σε Amazon .de/.fr/.it/.es (€) + .co.uk (GBP→€, ζωντανή ισοτιμία) + ελληνική τιμή.
+    Για κάθε χώρα: τιμή (€), καθαρή (−τοπικό ΦΠΑ), εκτ. τελικό κόστος (καθαρή×ελλ.ΦΠΑ +
+    μεταφορικά). Επιστρέφει {query, results[], rate, rate_live, note, diagnostics[]}."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
     q = _intl_clean_query(name)
+    tokens = [w.lower() for w in q.split() if len(w) > 2]
+    rate, rate_live = _gbp_to_eur()
     results, diags = [], []
     if gr_price is not None and to_float(gr_price):
-        results.append({"code": "gr", "country": "Ελλάδα", "flag": "🇬🇷",
-                        "title": (name or "").strip()[:160],
-                        "price": round(to_float(gr_price), 2), "currency": "EUR",
-                        "url": gr_url or "", "image": "", "home": True})
+        gr = {"code": "gr", "country": "Ελλάδα", "flag": "🇬🇷",
+              "title": (name or "").strip()[:160], "price": round(to_float(gr_price), 2),
+              "currency": "EUR", "url": gr_url or "", "image": "", "home": True}
+        results.append(_intl_enrich(gr, _GR_VAT, 0, rate))
     try:
         with ThreadPoolExecutor(max_workers=len(_INTL_DOMAINS)) as ex:
-            fut = {ex.submit(_amazon_domain_top, dom, q): (code, cname, flag)
-                   for code, cname, flag, dom, _loc in _INTL_DOMAINS}
+            fut = {ex.submit(_amazon_domain_top, dom, q, tokens):
+                   (code, cname, flag, cur, vat, ship)
+                   for code, cname, flag, dom, cur, vat, ship in _INTL_DOMAINS}
             for f in as_completed(fut):
-                code, cname, flag = fut[f]
+                code, cname, flag, cur, vat, ship = fut[f]
                 try:
                     top, diag = f.result()
                 except Exception as exc:
@@ -1872,23 +1926,25 @@ def compare_international(name, gr_price=None, gr_url=None):
                 if diag:
                     diags.append(f"{cname}: {diag}")
                 if top and top.get("price"):
-                    results.append({"code": code, "country": cname, "flag": flag,
-                                    "title": top["title"][:160], "price": round(top["price"], 2),
-                                    "currency": "EUR", "url": top["url"], "image": top["image"],
-                                    "candidates": top.get("candidates", 1)})
+                    e = {"code": code, "country": cname, "flag": flag,
+                         "title": top["title"][:160], "price": round(top["price"], 2),
+                         "currency": cur, "url": top["url"], "image": top["image"],
+                         "candidates": top.get("candidates", 1)}
+                    results.append(_intl_enrich(e, vat, ship, rate))
     except Exception as exc:
         diags.append(str(exc)[:120])
-    results.sort(key=lambda r: r["price"])
+    results.sort(key=lambda r: r["price"])      # ταξινόμηση με το συγκρίσιμο € (τιμή ραφιού)
     if results:
         cheapest = results[0]["price"]
         for r in results:
             r["cheapest"] = (r["price"] == cheapest)
             r["diff_pct"] = (round((r["price"] - cheapest) / cheapest * 100, 1)
                              if cheapest else 0)
-    note = ("Τιμές Amazon ευρωζώνης (σε €, άμεσα συγκρίσιμες). Το αποτέλεσμα ανά χώρα "
-            "είναι η φθηνότερη αντιστοιχία από την αναζήτηση — επιβεβαίωσε με τον τίτλο/"
-            "σύνδεσμο. Δεν περιλαμβάνονται μεταφορικά/δασμοί.")
-    return {"query": q, "results": results, "note": note, "diagnostics": diags}
+    note = ("Τιμές ραφιού (με τοπικό ΦΠΑ). «Καθαρή» = χωρίς τοπικό ΦΠΑ (δίκαιη σύγκριση). "
+            "«Τελικό ≈» = καθαρή + ελληνικό ΦΠΑ 24% + εκτ. μεταφορικά — ένδειξη, όχι ακριβές. "
+            "🇬🇧 εκτός ΕΕ: πιθανοί δασμοί/τελωνείο επιπλέον.")
+    return {"query": q, "results": results, "rate": round(rate, 4),
+            "rate_live": rate_live, "note": note, "diagnostics": diags}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
