@@ -10,6 +10,17 @@
 A modern HTML/CSS/JS front end (dark/neon) with a Python backend. Runs **as a
 standalone-window app** (pywebview) or **in the browser**.
 
+## Screenshots
+
+| Home | Search results (multi-source) |
+|:---:|:---:|
+| ![Home](screenshots/01-home.jpg) | ![Search results](screenshots/02-results.jpg) |
+
+**Product panel with price intelligence** — Low / Median / Now, sparkline history,
+and one-click actions (history, videos, other countries, alert, copy):
+
+![Product panel with price intelligence](screenshots/03-product-intelligence.jpg)
+
 ## Install (Windows, one click)
 1. **Extract** the zip.
 2. Double-click **`INSTALL.bat`** → it sets everything up (Python if missing,
