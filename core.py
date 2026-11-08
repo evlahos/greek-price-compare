@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.41"
+VERSION = "0.42"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -2232,6 +2232,16 @@ def _fuel_stations_all():
     return data
 
 
+def _norm_pref(x):
+    """Ομογενοποίηση ονομάτων νομών: η Αθήνα/Αττική έρχεται ως «ΝΟΜΑΡΧΙΑ ΑΘΗΝΩΝ»,
+    «ΝΟΜΑΡΧΙΑ ΠΕΙΡΑΙΩΣ» κ.λπ., ενώ οι υπόλοιποι νομοί σκέτοι (ΘΕΣΣΑΛΟΝΙΚΗΣ). Αφαιρούμε
+    το πρόθεμα «ΝΟΜΑΡΧΙΑ » ώστε να ταξινομούνται/βρίσκονται σωστά (ΑΘΗΝΩΝ, ΠΕΙΡΑΙΩΣ…)."""
+    s = (x or "").strip()
+    if s.upper().startswith("ΝΟΜΑΡΧΙΑ "):
+        s = s[9:].strip()
+    return s
+
+
 def fuel_stations(pref=None, q=None, limit=500):
     """Πρατήρια ανά νομό με ονόματα & τιμές ανά καύσιμο (+ Google rating).
     Χωρίς pref → επιστρέφει μόνο τη λίστα νομών (για το dropdown)."""
@@ -2240,12 +2250,12 @@ def fuel_stations(pref=None, q=None, limit=500):
     except Exception as exc:
         return {"error": str(exc)[:140], "stations": [], "prefectures": [],
                 "fuels": _STATION_FUELS}
-    prefs = sorted({s.get("pref") for s in allst if s.get("pref")})
+    prefs = sorted({_norm_pref(s.get("pref")) for s in allst if s.get("pref")})
     out, date = [], None
     if pref:
         nq = _strip_accents(q).lower().strip() if q else ""
         for s in allst:
-            if s.get("pref") != pref:
+            if _norm_pref(s.get("pref")) != pref:
                 continue
             if nq:
                 hay = _strip_accents(" ".join(str(s.get(k, "")) for k in ("n", "b", "a", "mun"))).lower()
