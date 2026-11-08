@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.40"
+VERSION = "0.41"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -711,6 +711,47 @@ def launch_chromium(pw, extra_args=None):
     raise RuntimeError("Δεν βρέθηκε συμβατός browser — " + " | ".join(attempts[-4:]))
 
 
+# Το Skroutz ανακατευθύνει τις μάρκες (π.χ. «adidas») σε σελίδα μάρκας (m.*.html)
+# που ΔΕΝ έχει JSON-LD ItemList — έχει όμως κάρτες li[data-skuid]. Εξάγουμε απευθείας
+# από το DOM (δουλεύει και σε σελίδες αναζήτησης και σε σελίδες μάρκας/κατηγορίας).
+_SKROUTZ_EXTRACT_JS = r"""() => {
+  const out = [];
+  document.querySelectorAll('li[data-skuid]').forEach(li => {
+    const a = li.querySelector('a.sku-card-title-link') || li.querySelector('a[href^="/s/"]');
+    if (!a) return;
+    const title = (a.getAttribute('title') || a.textContent || '').trim();
+    let href = (a.getAttribute('href') || '').split('?')[0].split('#')[0];
+    if (!title || !href) return;
+    let price = null;
+    const pe = li.querySelector('.price');
+    if (pe) { const m = (pe.textContent||'').replace(/\s/g,'').match(/(\d[\d.]*,\d{2})/);
+      if (m) price = parseFloat(m[1].replace(/\./g,'').replace(',', '.')); }
+    const im = li.querySelector('img:not(.tracking-img)');
+    let img = im ? (im.getAttribute('src') || im.getAttribute('data-src') || '') : '';
+    let rating = null, rc = null;
+    const rr = li.querySelector('a.rating, .rating, [class*="rating"]');
+    if (rr) { const mv = (rr.textContent||'').match(/(\d(?:[.,]\d)?)/); if (mv) rating = parseFloat(mv[1].replace(',','.'));
+      const mc = (rr.textContent||'').match(/\((\d+)\)/); if (mc) rc = parseInt(mc[1],10); }
+    out.push({title, price, url: 'https://www.skroutz.gr'+href, image: img, rating, rating_count: rc});
+  });
+  return out.slice(0, 40);
+}"""
+
+
+def _skroutz_row(it):
+    price = to_float(it.get("price"))
+    title = unescape(str(it.get("title") or "")).strip()
+    url = it.get("url") or ""
+    img = it.get("image") or ""
+    rating = to_float(it.get("rating"))
+    rc = it.get("rating_count")
+    return {"source": "Skroutz", "product_id": "", "title": title, "image": img,
+            "price_from": price, "offer_count": 1, "rating": rating, "product_url": url,
+            "_direct": {"merchant_name": "Skroutz", "title": title, "price": price, "url": url,
+                        "availability": "", "currency": "EUR", "image": img,
+                        "rating": rating, "rating_count": rc, "source": "Skroutz"}}
+
+
 def playwright_search_all(labels, query):
     """Αναζήτηση με headless Chromium (Playwright). Ένας browser για όλα τα
     καταστήματα. Επιστρέφει (rows, diagnostics)."""
@@ -724,7 +765,8 @@ def playwright_search_all(labels, query):
 
     rows, diags = [], []
     q = urllib.parse.quote(query)
-    wait_js = ("() => [...document.querySelectorAll('script[type=\"application/ld+json\"]')]"
+    wait_js = ("() => !!document.querySelector('li[data-skuid]') || "
+               "[...document.querySelectorAll('script[type=\"application/ld+json\"]')]"
                ".some(s => (s.textContent||'').includes('ItemList'))")
     try:
         with sync_playwright() as pw:
@@ -768,14 +810,26 @@ def playwright_search_all(labels, query):
                                         pass
                         html = page.content()
                         base = page.url
-                        r = parse_search_listing(html, base, label, limit=20)
+                        r = []
+                        if label == "Skroutz":
+                            # DOM extraction — καλύπτει σελίδες αναζήτησης ΚΑΙ μάρκας/κατηγορίας
+                            try:
+                                items = page.evaluate(_SKROUTZ_EXTRACT_JS) or []
+                                r = [_skroutz_row(it) for it in items if it.get("title")][:20]
+                            except Exception:
+                                r = []
+                        if not r:
+                            r = parse_search_listing(html, base, label, limit=20)
                         rows.extend(r)
                         if r:
                             diags.append(f"{label}: {len(r)} προϊόντα")
                         else:
-                            cf = any(s in html for s in ("Just a moment", "cf-browser-verification",
-                                                         "challenge-platform", "Attention Required"))
-                            diags.append(f"{label}: {'μπλοκαρίστηκε από Cloudflare — δοκίμασε ξανά' if cf else 'δεν βρέθηκαν προϊόντα (ίσως άλλαξε η σελίδα)'}")
+                            # πραγματικό Cloudflare = σελίδα πρόκλησης (ΟΧΙ απλώς το script
+                            # 'challenge-platform' που υπάρχει και σε κανονικές σελίδες Skroutz)
+                            tl = (page.title() or "").lower()
+                            cf = ("just a moment" in tl or "attention required" in tl
+                                  or "cf-browser-verification" in html)
+                            diags.append(f"{label}: {'μπλοκαρίστηκε από Cloudflare — δοκίμασε ξανά' if cf else 'δεν βρέθηκαν προϊόντα'}")
                     except Exception as exc:
                         diags.append(f"{label}: {str(exc)[:80]}")
                     finally:
