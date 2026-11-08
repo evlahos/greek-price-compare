@@ -307,8 +307,10 @@ a{color:var(--cy);text-decoration:none}
 .ftg:not(.on):hover{color:var(--ink)}
 .st-ctrl{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:0 2px 14px}
 .st-lbl{color:var(--mut);font:600 12px Inter;display:inline-flex;align-items:center;gap:7px}
-.gsel{height:40px;border-radius:11px;border:1px solid var(--stroke);background:var(--panel2);color:var(--ink);font:600 13px Inter;padding:0 12px;outline:none;cursor:pointer}
+.gsel{height:40px;border-radius:11px;border:1px solid var(--stroke);background:var(--bg2);color:var(--ink);font:600 13px Inter;padding:0 12px;outline:none;cursor:pointer}
 .gsel:focus{border-color:var(--stroke2)}
+/* solid, ευανάγνωστα native dropdown options σε light & dark theme */
+select option,.gsel option,.mini option,.sh-act select option{background:var(--bg2);color:var(--ink)}
 .st-list{display:flex;flex-direction:column;gap:7px}
 .st-item{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--stroke);border-radius:12px;background:var(--panel)}
 .st-item.best{border-color:rgba(52,211,153,.5);background:rgba(52,211,153,.06)}
@@ -985,6 +987,8 @@ function renderStationsList(){
   if(!stationPref){box.innerHTML=`<div class="fuel-note" style="margin-top:14px">${esc(t('st_none'))}</div>`;return;}
   const flt=norm($('#q').value||'');
   if(flt) st=st.filter(s=>norm((s.name||'')+' '+(s.brand||'')+' '+(s.area||'')+' '+(s.address||'')).includes(flt));
+  // δείξε μόνο πρατήρια που πουλάνε το επιλεγμένο καύσιμο (καθαρή λίστα, χωρίς «—»)
+  st=st.filter(s=>typeof (s.prices&&s.prices[stationFuel])==='number');
   // sort by selected fuel asc (stations without that fuel go last)
   st=st.slice().sort((a,b)=>{const av=a.prices&&a.prices[stationFuel],bv=b.prices&&b.prices[stationFuel];if(typeof av!=='number')return 1;if(typeof bv!=='number')return -1;return av-bv;});
   const vals=st.map(s=>s.prices&&s.prices[stationFuel]).filter(x=>typeof x==='number');
@@ -1046,6 +1050,15 @@ function applyFilters(){
       if(/εξαντλ|μη διαθ|out of|unavailable/.test(a))return false}
     return true;
   });
+  // φίλτρο συνάφειας: κόψε προϊόντα άσχετα με το ερώτημα (π.χ. «adidas» → άλλες μάρκες).
+  // Μόνο tokens ≥4 χαρακτήρων (ώστε «ps5», «lg» να μη φιλτράρουν λάθος).
+  if(mode!=='super'&&mode!=='fuel'){
+    const qtok=norm(lastQuery).split(/\s+/).filter(w=>w.length>=4);
+    if(qtok.length){
+      const rel=products.filter(p=>{const ti=norm(p.title||'');return qtok.some(w=>ti.includes(w));});
+      if(rel.length)products=rel;  // ασφάλεια: αν δεν μείνει τίποτα, κράτα όλα
+    }
+  }
   // ταξινόμηση grid (προαιρετική· η «προεπιλογή» κρατά τη σειρά άφιξης)
   const gs=$('#gsort').value;
   if(gs==='pasc')products.sort((a,b)=>(parseFloat(a.price_from)||9e9)-(parseFloat(b.price_from)||9e9));

@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.39"
+VERSION = "0.40"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -2200,6 +2200,10 @@ def fuel_stations(pref=None, q=None, limit=500):
             date = date or s.get("dt")
             p = s.get("p") or {}
             prices = {k: p.get(k) for k, _ in _STATION_FUELS if isinstance(p.get(k), (int, float)) and p.get(k)}
+            # Artifact του upstream dataset: πρατήρια μόνο θέρμανσης παίρνουν την τιμή
+            # θέρμανσης (dh) και ως «u95» (fallback). Αγνόησε το ψευδές u95 όταν == dh.
+            if "u95" in prices and "dh" in prices and abs(prices["u95"] - prices["dh"]) < 1e-6:
+                del prices["u95"]
             out.append({"name": s.get("n") or s.get("b") or "—",
                         "brand": s.get("b") or "", "area": s.get("mun") or "",
                         "address": s.get("a") or "", "prices": prices,
