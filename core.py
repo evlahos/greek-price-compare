@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.44"
+VERSION = "0.45"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -250,6 +250,26 @@ class BestPriceSource:
         except urllib.error.HTTPError as exc:
             if exc.code in (404, 410, 503):
                 self._reset_session()  # το session έληξε — reset για retry
+            # Το σώμα του 403/4xx περιέχει JSON-RPC error με το πραγματικό μήνυμα
+            # (π.χ. -32030: ο server περιόρισε την πρόσβαση λόγω ορίων χρήσης).
+            try:
+                ebody = exc.read().decode("utf-8", "replace")
+                for ln in ebody.splitlines():
+                    ln = ln.strip()
+                    if ln.startswith("data:"):
+                        ebody = ln[5:].strip()
+                        break
+                err = (json.loads(ebody) or {}).get("error") or {}
+                code, msg = err.get("code"), err.get("message")
+                if code == -32030:
+                    raise RuntimeError(
+                        "Το BestPrice περιόρισε προσωρινά την πρόσβαση της εφαρμογής "
+                        "(όρια χρήσης). Δοκίμασε αργότερα ή επικοίνωνησε με feedback@bestprice.gr."
+                    ) from None
+                if msg:
+                    raise RuntimeError(f"BestPrice: {msg}") from None
+            except (ValueError, AttributeError):
+                pass
             raise
         for line in body.splitlines():
             line = line.strip()
@@ -754,6 +774,53 @@ def _skroutz_row(it):
                         "rating": rating, "rating_count": rc, "source": "Skroutz"}}
 
 
+# Το Public είναι SPA: το ItemList JSON-LD μπαίνει με JS μετά το load, οπότε το
+# page.content() συχνά δεν το προλαβαίνει. Διαβάζουμε το live DOM με page.evaluate.
+_PUBLIC_EXTRACT_JS = r"""() => {
+  const out = [];
+  document.querySelectorAll('script[type="application/ld+json"]').forEach(s => {
+    let j; try { j = JSON.parse(s.textContent); } catch(e) { return; }
+    (Array.isArray(j) ? j : [j]).forEach(node => {
+      if (!node || node['@type'] !== 'ItemList' || !node.itemListElement) return;
+      node.itemListElement.forEach(li => {
+        const it = li.item || li;
+        if (!it || it['@type'] !== 'Product' || !it.name) return;
+        let off = it.offers, price = null;
+        if (Array.isArray(off)) off = off[0];
+        if (off) price = parseFloat(off.price || off.lowPrice);
+        let img = it.image; if (Array.isArray(img)) img = img[0];
+        if (img && img.url) img = img.url;
+        let url = it.url || '';
+        if (url && !/^https?:/.test(url)) url = 'https://www.public.gr' + url;
+        let rating = null, rc = null;
+        if (it.aggregateRating) {
+          rating = parseFloat(it.aggregateRating.ratingValue);
+          rc = it.aggregateRating.reviewCount || it.aggregateRating.ratingCount;
+        }
+        out.push({title: it.name, price: isNaN(price) ? null : price,
+                  url, image: img || '', rating: isNaN(rating) ? null : rating,
+                  rating_count: rc});
+      });
+    });
+  });
+  return out.slice(0, 40);
+}"""
+
+
+def _public_row(it):
+    price = to_float(it.get("price"))
+    title = unescape(str(it.get("title") or "")).strip()
+    url = it.get("url") or ""
+    img = it.get("image") or ""
+    rating = to_float(it.get("rating"))
+    rc = it.get("rating_count")
+    return {"source": "Public", "product_id": "", "title": title, "image": img,
+            "price_from": price, "offer_count": 1, "rating": rating, "product_url": url,
+            "_direct": {"merchant_name": "Public", "title": title, "price": price, "url": url,
+                        "availability": "", "currency": "EUR", "image": img,
+                        "rating": rating, "rating_count": rc, "source": "Public"}}
+
+
 def playwright_search_all(labels, query):
     """Αναζήτηση με headless Chromium (Playwright). Ένας browser για όλα τα
     καταστήματα. Επιστρέφει (rows, diagnostics)."""
@@ -768,8 +835,9 @@ def playwright_search_all(labels, query):
     rows, diags = [], []
     q = urllib.parse.quote(query)
     wait_js = ("() => !!document.querySelector('li[data-skuid]') || "
+               "!!document.querySelector('a[href*=\"/product/\"]') || "
                "[...document.querySelectorAll('script[type=\"application/ld+json\"]')]"
-               ".some(s => (s.textContent||'').includes('ItemList'))")
+               ".some(s => (s.textContent||'').includes('\"Product\"'))")
     try:
         with sync_playwright() as pw:
             try:
@@ -818,6 +886,13 @@ def playwright_search_all(labels, query):
                             try:
                                 items = page.evaluate(_SKROUTZ_EXTRACT_JS) or []
                                 r = [_skroutz_row(it) for it in items if it.get("title")][:20]
+                            except Exception:
+                                r = []
+                        elif label == "Public":
+                            # SPA — διαβάζουμε το ItemList από το live DOM (το content() αργεί)
+                            try:
+                                items = page.evaluate(_PUBLIC_EXTRACT_JS) or []
+                                r = [_public_row(it) for it in items if it.get("title")][:20]
                             except Exception:
                                 r = []
                         if not r:
