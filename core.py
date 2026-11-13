@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.43"
+VERSION = "0.44"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -233,9 +233,11 @@ class BestPriceSource:
 
     def _post(self, payload, timeout=35):
         data = json.dumps(payload).encode("utf-8")
+        # Browser-like UA + Referer: κάποια WAF μπλοκάρουν (403) μη-browser User-Agents.
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json, text/event-stream",
-                   "User-Agent": f"GreekPriceCompare/{VERSION}"}
+                   "User-Agent": _UA,
+                   "Referer": "https://www.bestprice.gr/"}
         if self._session_id:
             headers["Mcp-Session-Id"] = self._session_id
         req = urllib.request.Request(BESTPRICE_MCP, data=data, method="POST", headers=headers)
