@@ -11,6 +11,7 @@ import os
 import sqlite3
 import threading
 import time
+import urllib.parse
 import uuid
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
@@ -136,6 +137,66 @@ def api_search_stream():
     return Response(stream_with_context(gen()), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
                              "Connection": "keep-alive"})
+
+
+@app.get("/api/debug_public")
+def api_debug_public():
+    """ΠΡΟΣΩΡΙΝΟ διαγνωστικό: τρέχει το headless Playwright για το Public και
+    επιστρέφει τι ακριβώς βλέπει ο server. Παραμετροποιήσιμο για να δοκιμάζουμε
+    στρατηγικές αναμονής/consent χωρίς restart."""
+    from playwright.sync_api import sync_playwright
+    q = (request.args.get("q") or "iphone 15").strip()
+    settle = int(request.args.get("settle") or "6000")
+    idle = request.args.get("idle") == "1"
+    consent = request.args.get("consent") == "1"
+    url = "https://www.public.gr/search?q=" + urllib.parse.quote(q)
+    out = {"url": url, "settle": settle, "idle": idle, "consent": consent}
+    with _PW_LOCK:
+        try:
+            with sync_playwright() as pw:
+                browser = core.launch_chromium(pw, extra_args=core._STEALTH_ARGS)
+                ctx = browser.new_context(user_agent=core._UA, locale="el-GR",
+                                          timezone_id="Europe/Athens",
+                                          viewport={"width": 1366, "height": 900})
+                findbar = {"seen": False}
+                ctx.on("request", lambda r: findbar.__setitem__("seen", findbar["seen"] or "findbar" in r.url))
+                page = ctx.new_page()
+                page.goto(url, wait_until="networkidle" if idle else "domcontentloaded", timeout=45000)
+                if consent:
+                    try:
+                        page.click("#didomi-notice-agree-button, button[aria-label*='Συμφων'], "
+                                   "button:has-text('Αποδοχή'), button:has-text('ΣΥΜΦΩΝΩ')", timeout=4000)
+                        out["consent_clicked"] = True
+                    except Exception:
+                        out["consent_clicked"] = False
+                if settle:
+                    page.wait_for_timeout(settle)
+                out["title"] = page.title()
+                out["final_url"] = page.url
+                html = page.content()
+                out["html_len"] = len(html)
+                info = page.evaluate("""() => {
+                  const S=[...document.querySelectorAll('script[type=\"application/ld+json\"]')];
+                  let types=[],ic=0;
+                  S.forEach(s=>{try{const j=JSON.parse(s.textContent);(Array.isArray(j)?j:[j]).forEach(n=>{if(n&&n['@type']){types.push(n['@type']);if(n['@type']==='ItemList'&&n.itemListElement)ic+=n.itemListElement.length;}});}catch(e){}});
+                  return {jsonldTypes:types, itemListCount:ic,
+                          productLinks: document.querySelectorAll('a[href*=\"/product/\"]').length,
+                          bodyLen: (document.body.innerText||'').length,
+                          titleTxt: (document.title||'').slice(0,80)};
+                }""")
+                out.update(info)
+                try:
+                    items = page.evaluate(core._PUBLIC_EXTRACT_JS) or []
+                    out["extractor_count"] = len(items)
+                    out["extractor_sample"] = [{"t": (it.get("title") or "")[:40], "p": it.get("price")}
+                                               for it in items[:3]]
+                except Exception as exc:
+                    out["extractor_err"] = str(exc)[:120]
+                out["findbar_seen"] = findbar["seen"]
+                browser.close()
+        except Exception as exc:
+            out["error"] = str(exc)[:200]
+    return jsonify(out)
 
 
 @app.get("/api/offers")
