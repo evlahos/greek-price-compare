@@ -11,6 +11,7 @@ COPY core.py app.py ./
 COPY static ./static
 
 ENV PORT=8765
+ENV GPC_HOST=0.0.0.0
 EXPOSE 8765
 
 CMD ["python", "app.py"]

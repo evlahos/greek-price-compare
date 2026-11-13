@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.42"
+VERSION = "0.43"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1966,7 +1966,7 @@ def compare_international(name, gr_price=None, gr_url=None):
               "currency": "EUR", "url": gr_url or "", "image": "", "home": True}
         results.append(_intl_enrich(gr, _GR_VAT, 0, rate))
     try:
-        with ThreadPoolExecutor(max_workers=len(_INTL_DOMAINS)) as ex:
+        with ThreadPoolExecutor(max_workers=3) as ex:  # όριο RAM: όχι 5 Chromium μαζί
             fut = {ex.submit(_amazon_domain_top, dom, q, tokens):
                    (code, cname, flag, cur, vat, ship)
                    for code, cname, flag, dom, cur, vat, ship in _INTL_DOMAINS}

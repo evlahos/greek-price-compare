@@ -471,7 +471,7 @@ select option,.gsel option,.mini option,.sh-act select option{background:var(--b
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const api=(p)=>fetch(p).then(r=>r.json());
 const euro=v=>{v=parseFloat(v);return isFinite(v)?'€'+v.toFixed(2):'—'};
-const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc=s=>(s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function norm(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
 function exactMatch(t,q){const nt=norm(t),tk=norm(q).split(/\s+/).filter(Boolean);return tk.length>0&&tk.every(x=>nt.includes(x))}
 /* τιμή ανά μονάδα: βγάζει μέγεθος/μονάδα από τον τίτλο → €/kg, €/lt, €/τεμ (με υποστήριξη π.χ. 6x1.5L) */
