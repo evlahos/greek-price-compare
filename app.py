@@ -11,7 +11,6 @@ import os
 import sqlite3
 import threading
 import time
-import urllib.parse
 import uuid
 
 from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
@@ -137,93 +136,6 @@ def api_search_stream():
     return Response(stream_with_context(gen()), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no",
                              "Connection": "keep-alive"})
-
-
-_DBG_INFO_JS = """() => {
-  const S=[...document.querySelectorAll('script[type="application/ld+json"]')];
-  let types=[],ic=0;
-  S.forEach(s=>{try{const j=JSON.parse(s.textContent);(Array.isArray(j)?j:[j]).forEach(n=>{if(n&&n['@type']){types.push(n['@type']);if(n['@type']==='ItemList'&&n.itemListElement)ic+=n.itemListElement.length;}});}catch(e){}});
-  return {jsonldTypes:types, itemListCount:ic,
-          productLinks: document.querySelectorAll('a[href*="/product/"]').length,
-          bodyLen: (document.body.innerText||'').length};
-}"""
-
-
-@app.get("/api/debug_public")
-def api_debug_public():
-    """ΠΡΟΣΩΡΙΝΟ διαγνωστικό: δοκιμάζει πολλές στρατηγικές headless για το Public
-    (default/edge/chrome launcher × warmup στην αρχική) και αναφέρει τι βλέπει ο
-    server σε καθεμία, ώστε να βρούμε ποια παρακάμπτει το Akamai 'Access Denied'."""
-    from playwright.sync_api import sync_playwright
-    q = (request.args.get("q") or "iphone 15").strip()
-    settle = int(request.args.get("settle") or "6000")
-    only = (request.args.get("only") or "").strip()  # π.χ. "edge+warmup"
-    url = "https://www.public.gr/search?q=" + urllib.parse.quote(q)
-
-    def launcher_default(pw):
-        return core.launch_chromium(pw, extra_args=core._STEALTH_ARGS)
-
-    def launcher_channel(ch):
-        def f(pw):
-            return pw.chromium.launch(headless=True, channel=ch, args=list(core._STEALTH_ARGS))
-        return f
-
-    strategies = [
-        ("default+warmup", launcher_default, True),
-        ("edge+warmup", launcher_channel("msedge"), True),
-        ("chrome+warmup", launcher_channel("chrome"), True),
-        ("default", launcher_default, False),
-    ]
-    if only:
-        strategies = [s for s in strategies if s[0] == only]
-
-    results = {}
-    with _PW_LOCK:
-        for name, launch, warmup in strategies:
-            r = {"warmup": warmup}
-            try:
-                with sync_playwright() as pw:
-                    try:
-                        browser = launch(pw)
-                    except Exception as exc:
-                        r["launch_err"] = str(exc)[:120]
-                        results[name] = r
-                        continue
-                    ctx = browser.new_context(user_agent=core._UA, locale="el-GR",
-                                              timezone_id="Europe/Athens",
-                                              viewport={"width": 1366, "height": 900})
-                    try:
-                        ctx.add_init_script(
-                            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
-                            "window.chrome={runtime:{}};"
-                            "Object.defineProperty(navigator,'languages',{get:()=>['el-GR','el','en']});"
-                            "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});")
-                    except Exception:
-                        pass
-                    fb = {"seen": False}
-                    ctx.on("request", lambda rq: fb.__setitem__("seen", fb["seen"] or "findbar" in rq.url))
-                    page = ctx.new_page()
-                    try:
-                        if warmup:
-                            page.goto("https://www.public.gr/", wait_until="domcontentloaded", timeout=30000)
-                            page.wait_for_timeout(3500)
-                            r["warmup_title"] = (page.title() or "")[:50]
-                        page.goto(url, wait_until="domcontentloaded", timeout=45000)
-                        page.wait_for_timeout(settle)
-                        r["title"] = (page.title() or "")[:60]
-                        r["html_len"] = len(page.content())
-                        r.update(page.evaluate(_DBG_INFO_JS))
-                        items = page.evaluate(core._PUBLIC_EXTRACT_JS) or []
-                        r["extractor_count"] = len(items)
-                        r["findbar_seen"] = fb["seen"]
-                    except Exception as exc:
-                        r["err"] = str(exc)[:120]
-                    finally:
-                        browser.close()
-            except Exception as exc:
-                r["fatal"] = str(exc)[:120]
-            results[name] = r
-    return jsonify({"q": q, "settle": settle, "results": results})
 
 
 @app.get("/api/offers")
