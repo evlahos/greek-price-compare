@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.45"
+VERSION = "0.46"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -694,8 +694,9 @@ _STEALTH_ARGS = ["--disable-blink-features=AutomationControlled",
 def launch_chromium(pw, extra_args=None):
     """Εκκινεί ΑΟΡΑΤΟ (headless) Chromium-based browser. Σειρά:
     0) ρητός GPC_BROWSER (αν οριστεί),
-    1) το Chromium του Playwright (αν κατέβηκε) — πιο αξιόπιστο headless,
-    2) Edge/Chrome μέσω channel (πάντα headless στα Windows),
+    1) Edge/Chrome μέσω CHANNEL — πραγματικός browser, περνάει anti-bot (Akamai)
+       που μπλοκάρει το bundled Chromium του Playwright (Public: 'Access Denied'),
+    2) το Chromium του Playwright — fallback για Linux/Docker χωρίς Edge/Chrome,
     3) άλλοι Chromium-based (Edge/Chrome/Brave/Vivaldi/Chromium) — ΟΧΙ Opera.
     Η Opera αποκλείεται γιατί δεν τρέχει headless (ανοίγει ορατό παράθυρο).
     extra_args: πρόσθετα Chromium flags (π.χ. stealth για anti-bot σελίδες)."""
@@ -710,17 +711,18 @@ def launch_chromium(pw, extra_args=None):
             return pw.chromium.launch(headless=True, executable_path=exe, **kw)
         except Exception as exc:
             attempts.append(f"{os.path.basename(exe)}: {str(exc)[:55]}")
-    # 1) Chromium του Playwright
-    try:
-        return pw.chromium.launch(headless=True, **kw)
-    except Exception as exc:
-        attempts.append(f"chromium: {str(exc)[:70]}")
-    # 2) Edge/Chrome μέσω channel
+    # 1) Edge/Chrome μέσω channel — ΠΡΑΓΜΑΤΙΚΟΣ browser. Το bundled Chromium
+    #    ανιχνεύεται από Akamai/anti-bot (Public → 'Access Denied'), ο channel όχι.
     for channel in ("msedge", "chrome"):
         try:
             return pw.chromium.launch(headless=True, channel=channel, **kw)
         except Exception as exc:
             attempts.append(f"{channel}: {str(exc)[:70]}")
+    # 2) Chromium του Playwright — fallback (κυρίως Linux/Docker)
+    try:
+        return pw.chromium.launch(headless=True, **kw)
+    except Exception as exc:
+        attempts.append(f"chromium: {str(exc)[:70]}")
     # 3) Υπόλοιποι Chromium-based browsers — ΕΚΤΟΣ Opera (ανοίγει ορατό παράθυρο
     #    και δεν οδηγείται headless· μπαίνει μόνο αν ζητηθεί ρητά με GPC_BROWSER).
     for exe in cands:
@@ -864,6 +866,15 @@ def playwright_search_all(labels, query):
                     url = tmpl.format(q=q)
                     page = ctx.new_page()
                     try:
+                        if label == "Public":
+                            # Akamai: «ζεσταίνουμε» με την αρχική ώστε να πάρουμε τα
+                            # sensor cookies — αλλιώς το deep link γυρίζει 'Access Denied'.
+                            try:
+                                page.goto("https://www.public.gr/",
+                                          wait_until="domcontentloaded", timeout=30000)
+                                page.wait_for_timeout(3000)
+                            except Exception:
+                                pass
                         page.goto(url, wait_until="domcontentloaded", timeout=30000)
                         # Το Skroutz έχει Cloudflare ("Just a moment") — δίνουμε χρόνο
                         # να λυθεί η JS πρόκληση και ξαναδοκιμάζουμε μία φορά με reload.
@@ -878,6 +889,10 @@ def playwright_search_all(labels, query):
                                         page.reload(wait_until="domcontentloaded", timeout=30000)
                                     except Exception:
                                         pass
+                        # Το Public (findbar.io) γεμίζει το ItemList με μικρή καθυστέρηση
+                        # μετά το render — δίνουμε λίγο επιπλέον χρόνο.
+                        if label == "Public":
+                            page.wait_for_timeout(2500)
                         html = page.content()
                         base = page.url
                         r = []
