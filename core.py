@@ -25,7 +25,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.46"
+VERSION = "0.47"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1616,11 +1616,12 @@ _PHARM24_PARSE_JS = r"""
 
 def jsonld_itemlist_search(label, search_url, query, limit=25,
                            wait_selector='script[type="application/ld+json"]',
-                           parse_js=None, settle_ms=600):
+                           parse_js=None, settle_ms=600, warmup_url=None):
     """Γενικός scraper για eshop που εκθέτει JSON-LD ItemList/Product στη σελίδα
     αποτελεσμάτων. Τρέχει μέσω Playwright (δουλεύει και σε server-rendered και σε
     sites που προσθέτουν το JSON-LD με JS). `parse_js` για site-specific parser,
-    `settle_ms` για extra αναμονή σε AJAX/SPA sites."""
+    `settle_ms` για extra αναμονή σε AJAX/SPA sites, `warmup_url` για προ-επίσκεψη
+    στην αρχική (π.χ. Amazon anti-bot) ώστε να μπουν τα cookies πριν την αναζήτηση."""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -1628,6 +1629,7 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
     url = search_url.format(q=urllib.parse.quote(query))
     raw = None
     rmap = {}
+    dbg = ""
     try:
         with sync_playwright() as pw:
             try:
@@ -1639,6 +1641,13 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
                                           viewport={"width": 1366, "height": 900})
                 page = ctx.new_page()
                 try:
+                    if warmup_url:
+                        # anti-bot warmup: παίρνουμε cookies/reputation από την αρχική
+                        try:
+                            page.goto(warmup_url, wait_until="domcontentloaded", timeout=30000)
+                            page.wait_for_timeout(2500)
+                        except Exception:
+                            pass
                     page.goto(url, wait_until="domcontentloaded", timeout=30000)
                     try:
                         page.wait_for_selector(wait_selector, timeout=10000)
@@ -1650,6 +1659,15 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
                         rmap = page.evaluate(_JSONLD_RATING_MAP_JS) or {}
                     except Exception:
                         rmap = {}
+                    if not raw:
+                        # διάγνωση: αν μπλοκαρίστηκε (CAPTCHA/robot), να φαίνεται στο diag
+                        try:
+                            tl = (page.title() or "").lower()
+                            if any(k in tl for k in ("robot", "captcha", "sorry", "errors",
+                                                     "access denied", "attention")):
+                                dbg = page.title()[:50]
+                        except Exception:
+                            pass
                 finally:
                     try:
                         page.close()
@@ -1694,6 +1712,8 @@ def jsonld_itemlist_search(label, search_url, query, limit=25,
         if len(rows) >= limit:
             break
     if not rows:
+        if dbg:
+            return rows, f"{label}: μπλοκαρίστηκε ({dbg})"
         return rows, f"{label}: δεν βρέθηκαν (ίσως άλλαξε η σελίδα)"
     if len(rows) >= limit:
         return rows, f"{label}: {len(rows)}+ — πολλά αποτελέσματα, στένεψε την αναζήτηση"
@@ -1944,7 +1964,8 @@ def amazon_search(query, limit=25):
     return jsonld_itemlist_search(
         AMAZON_LABEL, _AMAZON_SEARCH_URL, query, limit,
         wait_selector='div[data-component-type="s-search-result"]',
-        parse_js=_AMAZON_PARSE_JS, settle_ms=1200)
+        parse_js=_AMAZON_PARSE_JS, settle_ms=1200,
+        warmup_url="https://www.amazon.de/")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -2012,7 +2033,8 @@ def _amazon_domain_top(domain, query, tokens, limit=8):
     rows, diag = jsonld_itemlist_search(
         AMAZON_LABEL, "https://www." + domain + "/s?k={q}", query, limit,
         wait_selector='div[data-component-type="s-search-result"]',
-        parse_js=_amazon_parse_js(domain), settle_ms=1200)
+        parse_js=_amazon_parse_js(domain), settle_ms=1200,
+        warmup_url="https://www." + domain + "/")
     priced = [r for r in (rows or []) if to_float(r.get("price_from"))]
     if not priced:
         return None, diag
