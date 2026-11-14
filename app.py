@@ -139,64 +139,91 @@ def api_search_stream():
                              "Connection": "keep-alive"})
 
 
+_DBG_INFO_JS = """() => {
+  const S=[...document.querySelectorAll('script[type="application/ld+json"]')];
+  let types=[],ic=0;
+  S.forEach(s=>{try{const j=JSON.parse(s.textContent);(Array.isArray(j)?j:[j]).forEach(n=>{if(n&&n['@type']){types.push(n['@type']);if(n['@type']==='ItemList'&&n.itemListElement)ic+=n.itemListElement.length;}});}catch(e){}});
+  return {jsonldTypes:types, itemListCount:ic,
+          productLinks: document.querySelectorAll('a[href*="/product/"]').length,
+          bodyLen: (document.body.innerText||'').length};
+}"""
+
+
 @app.get("/api/debug_public")
 def api_debug_public():
-    """ΠΡΟΣΩΡΙΝΟ διαγνωστικό: τρέχει το headless Playwright για το Public και
-    επιστρέφει τι ακριβώς βλέπει ο server. Παραμετροποιήσιμο για να δοκιμάζουμε
-    στρατηγικές αναμονής/consent χωρίς restart."""
+    """ΠΡΟΣΩΡΙΝΟ διαγνωστικό: δοκιμάζει πολλές στρατηγικές headless για το Public
+    (default/edge/chrome launcher × warmup στην αρχική) και αναφέρει τι βλέπει ο
+    server σε καθεμία, ώστε να βρούμε ποια παρακάμπτει το Akamai 'Access Denied'."""
     from playwright.sync_api import sync_playwright
     q = (request.args.get("q") or "iphone 15").strip()
     settle = int(request.args.get("settle") or "6000")
-    idle = request.args.get("idle") == "1"
-    consent = request.args.get("consent") == "1"
+    only = (request.args.get("only") or "").strip()  # π.χ. "edge+warmup"
     url = "https://www.public.gr/search?q=" + urllib.parse.quote(q)
-    out = {"url": url, "settle": settle, "idle": idle, "consent": consent}
+
+    def launcher_default(pw):
+        return core.launch_chromium(pw, extra_args=core._STEALTH_ARGS)
+
+    def launcher_channel(ch):
+        def f(pw):
+            return pw.chromium.launch(headless=True, channel=ch, args=list(core._STEALTH_ARGS))
+        return f
+
+    strategies = [
+        ("default+warmup", launcher_default, True),
+        ("edge+warmup", launcher_channel("msedge"), True),
+        ("chrome+warmup", launcher_channel("chrome"), True),
+        ("default", launcher_default, False),
+    ]
+    if only:
+        strategies = [s for s in strategies if s[0] == only]
+
+    results = {}
     with _PW_LOCK:
-        try:
-            with sync_playwright() as pw:
-                browser = core.launch_chromium(pw, extra_args=core._STEALTH_ARGS)
-                ctx = browser.new_context(user_agent=core._UA, locale="el-GR",
-                                          timezone_id="Europe/Athens",
-                                          viewport={"width": 1366, "height": 900})
-                findbar = {"seen": False}
-                ctx.on("request", lambda r: findbar.__setitem__("seen", findbar["seen"] or "findbar" in r.url))
-                page = ctx.new_page()
-                page.goto(url, wait_until="networkidle" if idle else "domcontentloaded", timeout=45000)
-                if consent:
+        for name, launch, warmup in strategies:
+            r = {"warmup": warmup}
+            try:
+                with sync_playwright() as pw:
                     try:
-                        page.click("#didomi-notice-agree-button, button[aria-label*='Συμφων'], "
-                                   "button:has-text('Αποδοχή'), button:has-text('ΣΥΜΦΩΝΩ')", timeout=4000)
-                        out["consent_clicked"] = True
+                        browser = launch(pw)
+                    except Exception as exc:
+                        r["launch_err"] = str(exc)[:120]
+                        results[name] = r
+                        continue
+                    ctx = browser.new_context(user_agent=core._UA, locale="el-GR",
+                                              timezone_id="Europe/Athens",
+                                              viewport={"width": 1366, "height": 900})
+                    try:
+                        ctx.add_init_script(
+                            "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+                            "window.chrome={runtime:{}};"
+                            "Object.defineProperty(navigator,'languages',{get:()=>['el-GR','el','en']});"
+                            "Object.defineProperty(navigator,'plugins',{get:()=>[1,2,3,4,5]});")
                     except Exception:
-                        out["consent_clicked"] = False
-                if settle:
-                    page.wait_for_timeout(settle)
-                out["title"] = page.title()
-                out["final_url"] = page.url
-                html = page.content()
-                out["html_len"] = len(html)
-                info = page.evaluate("""() => {
-                  const S=[...document.querySelectorAll('script[type=\"application/ld+json\"]')];
-                  let types=[],ic=0;
-                  S.forEach(s=>{try{const j=JSON.parse(s.textContent);(Array.isArray(j)?j:[j]).forEach(n=>{if(n&&n['@type']){types.push(n['@type']);if(n['@type']==='ItemList'&&n.itemListElement)ic+=n.itemListElement.length;}});}catch(e){}});
-                  return {jsonldTypes:types, itemListCount:ic,
-                          productLinks: document.querySelectorAll('a[href*=\"/product/\"]').length,
-                          bodyLen: (document.body.innerText||'').length,
-                          titleTxt: (document.title||'').slice(0,80)};
-                }""")
-                out.update(info)
-                try:
-                    items = page.evaluate(core._PUBLIC_EXTRACT_JS) or []
-                    out["extractor_count"] = len(items)
-                    out["extractor_sample"] = [{"t": (it.get("title") or "")[:40], "p": it.get("price")}
-                                               for it in items[:3]]
-                except Exception as exc:
-                    out["extractor_err"] = str(exc)[:120]
-                out["findbar_seen"] = findbar["seen"]
-                browser.close()
-        except Exception as exc:
-            out["error"] = str(exc)[:200]
-    return jsonify(out)
+                        pass
+                    fb = {"seen": False}
+                    ctx.on("request", lambda rq: fb.__setitem__("seen", fb["seen"] or "findbar" in rq.url))
+                    page = ctx.new_page()
+                    try:
+                        if warmup:
+                            page.goto("https://www.public.gr/", wait_until="domcontentloaded", timeout=30000)
+                            page.wait_for_timeout(3500)
+                            r["warmup_title"] = (page.title() or "")[:50]
+                        page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                        page.wait_for_timeout(settle)
+                        r["title"] = (page.title() or "")[:60]
+                        r["html_len"] = len(page.content())
+                        r.update(page.evaluate(_DBG_INFO_JS))
+                        items = page.evaluate(core._PUBLIC_EXTRACT_JS) or []
+                        r["extractor_count"] = len(items)
+                        r["findbar_seen"] = fb["seen"]
+                    except Exception as exc:
+                        r["err"] = str(exc)[:120]
+                    finally:
+                        browser.close()
+            except Exception as exc:
+                r["fatal"] = str(exc)[:120]
+            results[name] = r
+    return jsonify({"q": q, "settle": settle, "results": results})
 
 
 @app.get("/api/offers")
