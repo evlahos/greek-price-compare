@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.50"
+VERSION = "0.51"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1196,11 +1196,17 @@ _SKROUTZ_DEAL_CATS = [
     ("tech",       "Τεχνολογία",        "https://www.skroutz.gr/deals/c/1269/technology"),
     ("mobiles",    "Κινητά",            "https://www.skroutz.gr/deals/c/40/kinhta-thlefwna"),
     ("appliances", "Οικιακές Συσκευές", "https://www.skroutz.gr/deals/c/54/oikiakes-syskeues"),
+    ("tools",      "Εργαλεία & Κήπος",  "https://www.skroutz.gr/deals/c/5532/tools-garden"),
     ("home",       "Σπίτι",             "https://www.skroutz.gr/deals/c/11/home-garden"),
     ("fashion",    "Μόδα",              "https://www.skroutz.gr/deals/c/274/fashion"),
     ("shoes",      "Παπούτσια",         "https://www.skroutz.gr/deals/c/5309/papoutsia"),
     ("health",     "Υγεία & Ομορφιά",   "https://www.skroutz.gr/deals/c/2606/health-beauty"),
     ("gaming",     "Gaming",            "https://www.skroutz.gr/deals/c/1864/Gaming"),
+    ("auto",       "Auto - Moto",       "https://www.skroutz.gr/deals/c/33/auto-moto"),
+    ("sports",     "Αθλητισμός",        "https://www.skroutz.gr/deals/c/255/hobbies-sports"),
+    ("baby",       "Παιδικά - Βρεφικά", "https://www.skroutz.gr/deals/c/417/baby-kids"),
+    ("super",      "Super Market",      "https://www.skroutz.gr/deals/c/5069/supermarket"),
+    ("books",      "Βιβλία",            "https://www.skroutz.gr/deals/c/4466/vivlia"),
 ]
 _SKROUTZ_DEAL_MAP = {k: (name, url) for k, name, url in _SKROUTZ_DEAL_CATS}
 
