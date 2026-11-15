@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.49"
+VERSION = "0.50"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -754,9 +754,10 @@ _SKROUTZ_EXTRACT_JS = r"""() => {
     const im = li.querySelector('img:not(.tracking-img)');
     let img = im ? (im.getAttribute('src') || im.getAttribute('data-src') || '') : '';
     let rating = null, rc = null;
-    const rr = li.querySelector('a.rating, .rating, [class*="rating"]');
-    if (rr) { const mv = (rr.textContent||'').match(/(\d(?:[.,]\d)?)/); if (mv) rating = parseFloat(mv[1].replace(',','.'));
-      const mc = (rr.textContent||'').match(/\((\d+)\)/); if (mc) rc = parseInt(mc[1],10); }
+    const rv = li.querySelector('[data-testid="star-rating-value"]');
+    if (rv) { const v = parseFloat((rv.textContent||'').replace(',','.')); if (v>0 && v<=5) rating = v; }
+    const rcEl = li.querySelector('.reviews-count');
+    if (rcEl) { const mc = (rcEl.textContent||'').match(/(\d+)/); if (mc) rc = parseInt(mc[1],10); }
     out.push({title, price, url: 'https://www.skroutz.gr'+href, image: img, rating, rating_count: rc});
   });
   return out.slice(0, 40);
@@ -1209,9 +1210,47 @@ def deals_categories():
     return [{"key": k, "name": name} for k, name, _ in _SKROUTZ_DEAL_CATS]
 
 
+# Για κάθε προσφορά (SKU) βρίσκουμε το ΦΘΗΝΟΤΕΡΟ κατάστημα, καλώντας παράλληλα
+# το /s/<sku>/shops_list μέσα στην ίδια σελίδα (same-origin, γρήγορο).
+_SKROUTZ_DEALS_SHOPS_JS = r"""async (skus) => {
+  const out = {};
+  const one = async (sku) => {
+    try {
+      const r = await fetch('/s/' + sku + '/shops_list',
+          {headers: {'Accept': 'text/html', 'Turbo-Frame': 'shops-list-frame'}});
+      const t = await r.text();
+      const doc = new DOMParser().parseFromString(t, 'text/html');
+      let best = null;
+      doc.querySelectorAll('[data-shop-id]').forEach(el => {
+        const price = parseFloat(el.getAttribute('data-raw-price'));
+        if (!isFinite(price) || price <= 0) return;
+        const a = el.querySelector('a[href*="/shop/"]');
+        let shop = null;
+        if (a) { const m = (a.getAttribute('href') || '').match(/\/shop\/\d+\/([^\/#?]+)/);
+          if (m) { try { shop = decodeURIComponent(m[1]); } catch(e) { shop = m[1]; } shop = shop.replace(/-/g, ' ').trim(); } }
+        if (!best || price < best.price) best = {shop: shop, price: price};
+      });
+      if (best && best.shop) out[sku] = best;
+    } catch(e) {}
+  };
+  const q = skus.slice();
+  const workers = Array(6).fill(0).map(async () => { while (q.length) { await one(q.shift()); } });
+  await Promise.all(workers);
+  return out;
+}"""
+
+
+def _titlecase_shop(name):
+    """π.χ. 'public' → 'Public', 'e shop gr' → 'E Shop Gr'. Διατηρεί γνωστά."""
+    if not name:
+        return "Skroutz"
+    return " ".join(w[:1].upper() + w[1:] for w in str(name).split())
+
+
 def skroutz_deals(url="https://www.skroutz.gr/deals", limit=24):
     """Ζωντανές προσφορές Skroutz (/deals ή /deals/c/<κατηγορία>) — Playwright
-    (Edge channel) + DOM extraction από τις κάρτες li[data-skuid]."""
+    (Edge channel) + DOM extraction από τις κάρτες li[data-skuid]. Για κάθε
+    προσφορά βρίσκουμε και το φθηνότερο ΚΑΤΑΣΤΗΜΑ (shops_list)."""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -1243,6 +1282,30 @@ def skroutz_deals(url="https://www.skroutz.gr/deals", limit=24):
                         page.wait_for_timeout(3000)
                     items = page.evaluate(_SKROUTZ_EXTRACT_JS) or []
                     rows = [_skroutz_row(it) for it in items if it.get("title")][:limit]
+                    # Εμπλουτισμός: φθηνότερο κατάστημα + τιμή ανά προσφορά
+                    try:
+                        sku_of = {}
+                        for r in rows:
+                            mm = re.search(r"/s/(\d+)/", r.get("product_url") or "")
+                            if mm:
+                                sku_of[r["product_url"]] = mm.group(1)
+                        skus = list({v for v in sku_of.values()})
+                        if skus:
+                            shops = page.evaluate(_SKROUTZ_DEALS_SHOPS_JS, skus) or {}
+                            for r in rows:
+                                sku = sku_of.get(r.get("product_url"))
+                                info = shops.get(sku) if sku else None
+                                if info and info.get("shop"):
+                                    shop = _titlecase_shop(info["shop"])
+                                    r["source"] = shop
+                                    r["_direct"]["source"] = shop
+                                    r["_direct"]["merchant_name"] = shop
+                                    pr = to_float(info.get("price"))
+                                    if pr:
+                                        r["price_from"] = pr
+                                        r["_direct"]["price"] = pr
+                    except Exception:
+                        pass
                 finally:
                     try:
                         page.close()
