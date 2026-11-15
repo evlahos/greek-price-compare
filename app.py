@@ -138,6 +138,28 @@ def api_search_stream():
                              "Connection": "keep-alive"})
 
 
+@app.get("/api/deals")
+def api_deals():
+    """Ημερολόγιο προσφορών (events με status/countdown). Χωρίς δικτύωση."""
+    try:
+        return jsonify({"events": core.deals_calendar()})
+    except Exception as exc:
+        return jsonify({"events": [], "error": str(exc)})
+
+
+@app.get("/api/deals_live")
+def api_deals_live():
+    """Ζωντανές προσφορές από μία πηγή (eshop_crazy/eshop_all/eshop_new/skroutz)."""
+    which = (request.args.get("which") or "eshop_crazy").strip()
+    try:
+        with _PW_LOCK:
+            rows, diag = core.deals_live(which)
+    except Exception as exc:
+        return jsonify({"which": which, "products": [], "diagnostic": str(exc)})
+    _log_prices("[deals] " + which, rows)
+    return jsonify({"which": which, "products": rows, "diagnostic": diag})
+
+
 @app.get("/api/offers")
 def api_offers():
     pid = (request.args.get("product_id") or "").strip()

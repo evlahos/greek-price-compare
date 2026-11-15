@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import csv
+import datetime
 import gzip
 import json
 import io
@@ -25,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.47"
+VERSION = "0.48"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1061,6 +1062,231 @@ def eshop_search(query):
     if rows:
         return rows, f"e-shop.gr: {len(rows)} προϊόντα"
     return [], "e-shop.gr: δεν βρέθηκαν προϊόντα"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 💰 ΠΡΟΣΦΟΡΕΣ (Deals) — υβριδικό: (A) ημερολόγιο events + (B) ζωντανές προσφορές
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _last_friday_nov(year):
+    d = datetime.date(year, 11, 30)
+    return d - datetime.timedelta(days=(d.weekday() - 4) % 7)  # πίσω ως Παρασκευή
+
+
+def _nth_monday(year, month, n):
+    d = datetime.date(year, month, 1)
+    return d + datetime.timedelta(days=(0 - d.weekday()) % 7 + 7 * (n - 1))
+
+
+def _month_end(year, month):
+    if month == 12:
+        return datetime.date(year, 12, 31)
+    return datetime.date(year, month + 1, 1) - datetime.timedelta(days=1)
+
+
+def _orthodox_easter(year):
+    """Ορθόδοξο Πάσχα (Gregorian ημερομηνία) — αλγόριθμος Meeus (Ιουλιανό +13)."""
+    a, b, c = year % 4, year % 7, year % 19
+    d = (19 * c + 15) % 30
+    e = (2 * a + 4 * b - d + 34) % 7
+    month = (d + e + 114) // 31
+    day = ((d + e + 114) % 31) + 1
+    return datetime.date(year, month, day) + datetime.timedelta(days=13)
+
+
+def _mk_event(eid, name, emoji, desc, start, end, today, links, live=None):
+    if start <= today <= end:
+        status, days = "active", 0
+    elif today < start:
+        status, days = "upcoming", (start - today).days
+    else:
+        status, days = "past", -1
+    return {"id": eid, "name": name, "emoji": emoji, "desc": desc,
+            "start": start.isoformat(), "end": end.isoformat(),
+            "status": status, "days_until": days,
+            "links": [{"name": n, "url": u} for n, u in links], "live": live}
+
+
+def _occurrence(builder, today):
+    """Η φετινή εμφάνιση ενός εποχικού event· αν τελείωσε, η περσινή→επόμενη χρονιά."""
+    s, e = builder(today.year)
+    if e < today:
+        s, e = builder(today.year + 1)
+    return s, e
+
+
+# Κοινά links για εποχικά events (hubs προσφορών)
+_DEAL_HUBS = [("Skroutz", "https://www.skroutz.gr/deals"),
+              ("BestPrice", "https://www.bestprice.gr/deals/c"),
+              ("e-shop.gr", "https://www.e-shop.gr/offers?sid=2"),
+              ("Public", "https://www.public.gr/")]
+
+
+def deals_calendar(today=None):
+    """Ημερολόγιο επαναλαμβανόμενων events προσφορών με υπολογισμένο status
+    (active/upcoming + countdown). Μηδέν δικτύωση — μόνο λογική ημερομηνιών."""
+    today = today or datetime.date.today()
+    out = []
+
+    # 1) Crazy Sunday (e-shop) — κάθε Κυριακή
+    dow = today.weekday()  # Δευ=0 … Κυρ=6
+    cs = today if dow == 6 else today + datetime.timedelta(days=(6 - dow))
+    out.append(_mk_event(
+        "crazy-sunday", "Crazy Sunday", "🛒",
+        "e-shop.gr — νέες προσφορές κάθε Κυριακή", cs, cs, today,
+        [("e-shop.gr", "https://www.e-shop.gr/crazysundays")], live="eshop_crazy"))
+
+    # 2) Black Friday + Cyber Monday
+    bf = _last_friday_nov(today.year)
+    if bf + datetime.timedelta(days=3) < today:
+        bf = _last_friday_nov(today.year + 1)
+    cyber = bf + datetime.timedelta(days=3)
+    out.append(_mk_event(
+        "black-friday", "Black Friday", "🏷️",
+        "Η μεγαλύτερη έκπτωση της χρονιάς", bf, bf, today,
+        [("Skroutz", "https://www.skroutz.gr/deals"),
+         ("BestPrice", "https://www.bestprice.gr/black-friday"),
+         ("e-shop.gr", "https://www.e-shop.gr/offers?sid=2")], live="skroutz"))
+    out.append(_mk_event(
+        "cyber-monday", "Cyber Monday", "💻",
+        "Online προσφορές τη Δευτέρα μετά τη Black Friday", cyber, cyber, today,
+        [("Skroutz", "https://www.skroutz.gr/deals")], live="skroutz"))
+
+    # 3) Τακτικές χειμερινές εκπτώσεις (2η Δευτέρα Ιαν → τέλος Φεβ)
+    s, e = _occurrence(lambda y: (_nth_monday(y, 1, 2), _month_end(y, 2)), today)
+    out.append(_mk_event("winter-sales", "Χειμερινές εκπτώσεις", "❄️",
+                         "Τακτικές εκπτώσεις Ιανουαρίου–Φεβρουαρίου", s, e, today, _DEAL_HUBS))
+
+    # 4) Τακτικές θερινές εκπτώσεις (2η Δευτέρα Ιουλ → τέλος Αυγ)
+    s, e = _occurrence(lambda y: (_nth_monday(y, 7, 2), _month_end(y, 8)), today)
+    out.append(_mk_event("summer-sales", "Θερινές εκπτώσεις", "☀️",
+                         "Τακτικές εκπτώσεις Ιουλίου–Αυγούστου", s, e, today, _DEAL_HUBS))
+
+    # 5) Ενδιάμεσες εκπτώσεις (1ο 10ήμερο Μαΐου & Νοεμβρίου)
+    s, e = _occurrence(lambda y: (datetime.date(y, 11, 1), datetime.date(y, 11, 10)), today)
+    out.append(_mk_event("interim-nov", "Ενδιάμεσες εκπτώσεις (Νοε)", "🔻",
+                         "Πρώτο 10ήμερο Νοεμβρίου", s, e, today, _DEAL_HUBS))
+    s, e = _occurrence(lambda y: (datetime.date(y, 5, 1), datetime.date(y, 5, 10)), today)
+    out.append(_mk_event("interim-may", "Ενδιάμεσες εκπτώσεις (Μάι)", "🔻",
+                         "Πρώτο 10ήμερο Μαΐου", s, e, today, _DEAL_HUBS))
+
+    # 6) Χριστούγεννα (Δεκέμβριος)
+    s, e = _occurrence(lambda y: (datetime.date(y, 12, 1), datetime.date(y, 12, 31)), today)
+    out.append(_mk_event("christmas", "Χριστουγεννιάτικες προσφορές", "🎄",
+                         "Προσφορές εορτών Δεκεμβρίου", s, e, today, _DEAL_HUBS))
+
+    # 7) Πάσχα (Ορθόδοξο) — 2 εβδομάδες πριν έως την Κυριακή του Πάσχα
+    def _easter(y):
+        es = _orthodox_easter(y)
+        return (es - datetime.timedelta(days=14), es)
+    s, e = _occurrence(_easter, today)
+    out.append(_mk_event("easter", "Πασχαλινές προσφορές", "🐣",
+                         "Προσφορές της Μεγάλης Εβδομάδας", s, e, today, _DEAL_HUBS))
+
+    out.sort(key=lambda ev: (0 if ev["status"] == "active" else 1, ev["days_until"]))
+    return out
+
+
+# --- (B) Ζωντανές προσφορές ------------------------------------------------- #
+_ESHOP_OFFER_RE = re.compile(
+    r"<a href='(https://www\.e-shop\.gr/[^']*?-p-([A-Z]{2,4}\.[A-Za-z0-9.]+))'[^>]*>([^<]{6,})</a>")
+
+_ESHOP_OFFERS = {
+    "eshop_crazy": ("https://www.e-shop.gr/crazysundays", "Crazy Sunday"),
+    "eshop_all":   ("https://www.e-shop.gr/offers?sid=2", "Προσφορές e-shop"),
+    "eshop_new":   ("https://www.e-shop.gr/offers?sid=1", "Νέες αφίξεις e-shop"),
+}
+
+
+def _parse_eshop_offers(html, limit=24):
+    rows, seen = [], set()
+    for m in _ESHOP_OFFER_RE.finditer(html):
+        url, pid, title = m.group(1), m.group(2), m.group(3)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        pm = _ESHOP_PRICE_RE.search(html, m.end(), m.end() + 600)
+        price = to_float(pm.group(1)) if pm else None
+        cat = pid.split(".")[0]
+        img = f"https://www.e-shop.gr/images/{cat}/SMALL/{pid}.jpg"
+        title = unescape(title).strip()
+        rows.append({
+            "source": "e-shop.gr", "product_id": "", "title": title, "image": img,
+            "price_from": price, "offer_count": 1, "rating": None, "product_url": url,
+            "_direct": {"merchant_name": "e-shop.gr", "title": title, "price": price,
+                        "url": url, "availability": "", "currency": "EUR", "image": img,
+                        "rating": None, "rating_count": None, "source": "e-shop.gr"}})
+        if len(rows) >= limit:
+            break
+    return rows
+
+
+def eshop_offers(which="eshop_crazy", limit=24):
+    url, label = _ESHOP_OFFERS.get(which, _ESHOP_OFFERS["eshop_crazy"])
+    try:
+        html = http_get(url, timeout=20, encoding="iso-8859-7")
+    except Exception as exc:
+        return [], f"{label}: {str(exc)[:80]}"
+    rows = _parse_eshop_offers(html, limit)
+    if rows:
+        return rows, f"{label}: {len(rows)} προσφορές"
+    return [], f"{label}: δεν βρέθηκαν προσφορές"
+
+
+def skroutz_deals(limit=24):
+    """Ζωντανές προσφορές Skroutz (/deals) — Playwright (Edge channel) + DOM
+    extraction από τις κάρτες li[data-skuid]."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return [], f"Skroutz: {PLAYWRIGHT_HINT}"
+    rows = []
+    try:
+        with sync_playwright() as pw:
+            try:
+                browser = launch_chromium(pw, extra_args=_STEALTH_ARGS)
+            except Exception as exc:
+                return [], f"Skroutz: δεν ξεκίνησε browser — {str(exc)[:90]}"
+            try:
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          timezone_id="Europe/Athens",
+                                          viewport={"width": 1366, "height": 900})
+                try:
+                    ctx.add_init_script(
+                        "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});"
+                        "window.chrome={runtime:{}};")
+                except Exception:
+                    pass
+                page = ctx.new_page()
+                try:
+                    page.goto("https://www.skroutz.gr/deals",
+                              wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        page.wait_for_function(
+                            "() => !!document.querySelector('li[data-skuid]')", timeout=12000)
+                    except Exception:
+                        page.wait_for_timeout(3000)
+                    items = page.evaluate(_SKROUTZ_EXTRACT_JS) or []
+                    rows = [_skroutz_row(it) for it in items if it.get("title")][:limit]
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+            finally:
+                browser.close()
+    except Exception as exc:
+        return [], f"Skroutz: {str(exc)[:110]}"
+    if rows:
+        return rows, f"Skroutz deals: {len(rows)} προσφορές"
+    return [], "Skroutz: δεν βρέθηκαν προσφορές"
+
+
+def deals_live(which="eshop_crazy", limit=24):
+    """Ενιαίο σημείο για ζωντανές προσφορές ανά πηγή."""
+    if which == "skroutz":
+        return skroutz_deals(limit)
+    return eshop_offers(which, limit)
 
 
 # --- Σούπερ Μάρκετ: επίσημο API posokanei.gov.gr (ex e-Katanalotis) --- #
