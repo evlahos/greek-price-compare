@@ -140,17 +140,19 @@ def api_search_stream():
 
 @app.get("/api/deals")
 def api_deals():
-    """Ημερολόγιο προσφορών (events με status/countdown). Χωρίς δικτύωση."""
+    """Ημερολόγιο προσφορών + κατηγορίες + κατάλογος καταστημάτων. Χωρίς δικτύωση."""
     try:
-        return jsonify({"events": core.deals_calendar()})
+        return jsonify({"events": core.deals_calendar(),
+                        "categories": core.deals_categories(),
+                        "directory": core.deals_shop_directory()})
     except Exception as exc:
-        return jsonify({"events": [], "error": str(exc)})
+        return jsonify({"events": [], "categories": [], "directory": [], "error": str(exc)})
 
 
 @app.get("/api/deals_live")
 def api_deals_live():
-    """Ζωντανές προσφορές από μία πηγή (eshop_crazy/eshop_all/eshop_new/skroutz)."""
-    which = (request.args.get("which") or "eshop_crazy").strip()
+    """Ζωντανές προσφορές για μία κατηγορία (μέσω Skroutz· πολλά καταστήματα)."""
+    which = (request.args.get("which") or "all").strip()
     try:
         with _PW_LOCK:
             rows, diag = core.deals_live(which)

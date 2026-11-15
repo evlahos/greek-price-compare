@@ -295,6 +295,10 @@ a{color:var(--cy);text-decoration:none}
 .dtab.on{background:var(--grad);color:#fff;border-color:transparent}
 .dealslive{margin-top:8px}
 a.dealcard{text-decoration:none;color:inherit;display:block}
+.dshop-dir{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.dshop-group{border:1px solid var(--stroke);background:var(--panel);border-radius:var(--r2);padding:12px 14px}
+.dshop-cat{font:800 13px Inter;color:var(--ink);margin-bottom:8px}
+.dshop-links{display:flex;flex-wrap:wrap;gap:6px}
 
 /* ⛽ Καύσιμα */
 .grid-p.fuelmode{display:block}
@@ -530,7 +534,7 @@ const T={
     deals_filter_ph:'Οι προσφορές ανανεώνονται αυτόματα',
     deals_cal_title:'📅 Ημερολόγιο προσφορών',deals_live_title:'🔥 Ζωντανές προσφορές τώρα',
     deals_now:'ΤΩΡΑ',deals_today:'Σήμερα',deals_in:'σε',deals_days:'μέρες',deals_day:'μέρα',
-    deals_tab_crazy:'🛒 Crazy Sunday',deals_tab_eshop:'🏷️ Προσφορές e-shop',deals_tab_skroutz:'🔥 Skroutz deals',
+    deals_dir_title:'🏪 Καταστήματα ανά κατηγορία',
     deals_loading:'Φόρτωση προσφορών…',deals_visit:'Δες προσφορές →',deals_none:'Δεν βρέθηκαν ζωντανές προσφορές αυτή τη στιγμή.',
     fuel_u95:'Αμόλυβδη 95',fuel_u100:'Αμόλυβδη 100',fuel_diesel:'Diesel Κίνησης',fuel_autogas:'Υγραέριο (Autogas)',fuel_heating:'Πετρέλαιο Θέρμανσης',
     fuel_nomos:'Νομός',fuel_stations:'πρατήρια',fuel_loading:'⛽ Φόρτωση δελτίου τιμών…',fuel_none:'Δεν βρέθηκαν δεδομένα καυσίμων.',
@@ -615,7 +619,7 @@ const T={
     deals_filter_ph:'Deals refresh automatically',
     deals_cal_title:'📅 Deals calendar',deals_live_title:'🔥 Live deals right now',
     deals_now:'NOW',deals_today:'Today',deals_in:'in',deals_days:'days',deals_day:'day',
-    deals_tab_crazy:'🛒 Crazy Sunday',deals_tab_eshop:'🏷️ e-shop offers',deals_tab_skroutz:'🔥 Skroutz deals',
+    deals_dir_title:'🏪 Shops by category',
     deals_loading:'Loading deals…',deals_visit:'See deals →',deals_none:'No live deals found right now.',
     fuel_u95:'Unleaded 95',fuel_u100:'Unleaded 100',fuel_diesel:'Diesel',fuel_autogas:'Autogas (LPG)',fuel_heating:'Heating Oil',
     fuel_nomos:'Prefecture',fuel_stations:'stations',fuel_loading:'⛽ Loading price bulletin…',fuel_none:'No fuel data found.',
@@ -1105,13 +1109,13 @@ function applyFilters(){
 
 /* ---------- product grid ---------- */
 /* ---------- 🏷️ Προσφορές (Deals) ---------- */
-let dealsData=null, dealsLoading=false, dealLiveTab='eshop_crazy', dealLiveCache={};
+let dealsData=null, dealsLoading=false, dealLiveTab='all', dealLiveCache={};
 async function loadDeals(){
   if(dealsLoading)return; dealsLoading=true;
   const g=$('#grid'); g.classList.remove('fuelmode'); g.classList.add('dealsmode');
   g.innerHTML=skelCards(6); busy(true,t('deals_loading'));
   try{ dealsData=await api('/api/deals'); }
-  catch(e){ dealsData={events:[],error:String(e)}; }
+  catch(e){ dealsData={events:[],categories:[],directory:[],error:String(e)}; }
   dealsLoading=false; busy(false,''); $('#statusTxt').textContent='';
   dealLiveCache={};
   renderDeals();
@@ -1127,6 +1131,8 @@ function dealCountdown(ev){
 function renderDeals(){
   const g=$('#grid'); g.classList.add('dealsmode');
   const evs=(dealsData&&dealsData.events)||[];
+  const cats=(dealsData&&dealsData.categories)||[];
+  const dir=(dealsData&&dealsData.directory)||[];
   const cal=evs.map(ev=>{
     const links=(ev.links||[]).map(l=>`<a class="dlink" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
     return `<div class="dcard${ev.status==='active'?' on':''}">
@@ -1134,14 +1140,17 @@ function renderDeals(){
       <div class="dname">${esc(ev.name)}</div><div class="ddesc">${esc(ev.desc)}</div>
       <div class="dlinks">${links}</div></div>`;
   }).join('');
-  const tabs=[['eshop_crazy','deals_tab_crazy'],['eshop_all','deals_tab_eshop'],['skroutz','deals_tab_skroutz']]
-    .map(([k,lbl])=>`<button class="dtab${dealLiveTab===k?' on':''}" data-k="${k}">${esc(t(lbl))}</button>`).join('');
+  const tabs=cats.map(c=>`<button class="dtab${dealLiveTab===c.key?' on':''}" data-k="${esc(c.key)}">${esc(c.name)}</button>`).join('');
+  const dirHtml=dir.map(d=>`<div class="dshop-group"><div class="dshop-cat">${esc(d.cat)}</div>
+    <div class="dshop-links">${d.shops.map(s=>`<a class="dlink" href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>`).join('')}</div></div>`).join('');
   g.innerHTML=`<div class="deals-wrap">
     <div class="dsec-title">${esc(t('deals_cal_title'))}</div>
     <div class="dcal">${cal}</div>
     <div class="dsec-title">${esc(t('deals_live_title'))}</div>
     <div class="dtabs">${tabs}</div>
-    <div id="dealLive" class="grid-p dealslive">${skelCards(6)}</div></div>`;
+    <div id="dealLive" class="grid-p dealslive">${skelCards(6)}</div>
+    <div class="dsec-title">${esc(t('deals_dir_title'))}</div>
+    <div class="dshop-dir">${dirHtml}</div></div>`;
   $$('#grid .dtab').forEach(b=>b.onclick=()=>{dealLiveTab=b.dataset.k;renderDeals();loadDealLive(dealLiveTab);});
 }
 async function loadDealLive(which){

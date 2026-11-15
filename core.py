@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.48"
+VERSION = "0.49"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1187,55 +1187,31 @@ def deals_calendar(today=None):
     return out
 
 
-# --- (B) Ζωντανές προσφορές ------------------------------------------------- #
-_ESHOP_OFFER_RE = re.compile(
-    r"<a href='(https://www\.e-shop\.gr/[^']*?-p-([A-Z]{2,4}\.[A-Za-z0-9.]+))'[^>]*>([^<]{6,})</a>")
-
-_ESHOP_OFFERS = {
-    "eshop_crazy": ("https://www.e-shop.gr/crazysundays", "Crazy Sunday"),
-    "eshop_all":   ("https://www.e-shop.gr/offers?sid=2", "Προσφορές e-shop"),
-    "eshop_new":   ("https://www.e-shop.gr/offers?sid=1", "Νέες αφίξεις e-shop"),
-}
-
-
-def _parse_eshop_offers(html, limit=24):
-    rows, seen = [], set()
-    for m in _ESHOP_OFFER_RE.finditer(html):
-        url, pid, title = m.group(1), m.group(2), m.group(3)
-        if pid in seen:
-            continue
-        seen.add(pid)
-        pm = _ESHOP_PRICE_RE.search(html, m.end(), m.end() + 600)
-        price = to_float(pm.group(1)) if pm else None
-        cat = pid.split(".")[0]
-        img = f"https://www.e-shop.gr/images/{cat}/SMALL/{pid}.jpg"
-        title = unescape(title).strip()
-        rows.append({
-            "source": "e-shop.gr", "product_id": "", "title": title, "image": img,
-            "price_from": price, "offer_count": 1, "rating": None, "product_url": url,
-            "_direct": {"merchant_name": "e-shop.gr", "title": title, "price": price,
-                        "url": url, "availability": "", "currency": "EUR", "image": img,
-                        "rating": None, "rating_count": None, "source": "e-shop.gr"}})
-        if len(rows) >= limit:
-            break
-    return rows
+# --- (B) Ζωντανές προσφορές ανά κατηγορία (Skroutz: 8000+ καταστήματα) ------- #
+# Το Skroutz /deals καλύπτει χιλιάδες καταστήματα ΚΑΙ όλες τις κατηγορίες — πιο
+# ευρύ & αξιόπιστο από scraping κάθε eshop χωριστά. Ανά-κατηγορία URLs:
+_SKROUTZ_DEAL_CATS = [
+    ("all",        "Όλες οι προσφορές", "https://www.skroutz.gr/deals"),
+    ("tech",       "Τεχνολογία",        "https://www.skroutz.gr/deals/c/1269/technology"),
+    ("mobiles",    "Κινητά",            "https://www.skroutz.gr/deals/c/40/kinhta-thlefwna"),
+    ("appliances", "Οικιακές Συσκευές", "https://www.skroutz.gr/deals/c/54/oikiakes-syskeues"),
+    ("home",       "Σπίτι",             "https://www.skroutz.gr/deals/c/11/home-garden"),
+    ("fashion",    "Μόδα",              "https://www.skroutz.gr/deals/c/274/fashion"),
+    ("shoes",      "Παπούτσια",         "https://www.skroutz.gr/deals/c/5309/papoutsia"),
+    ("health",     "Υγεία & Ομορφιά",   "https://www.skroutz.gr/deals/c/2606/health-beauty"),
+    ("gaming",     "Gaming",            "https://www.skroutz.gr/deals/c/1864/Gaming"),
+]
+_SKROUTZ_DEAL_MAP = {k: (name, url) for k, name, url in _SKROUTZ_DEAL_CATS}
 
 
-def eshop_offers(which="eshop_crazy", limit=24):
-    url, label = _ESHOP_OFFERS.get(which, _ESHOP_OFFERS["eshop_crazy"])
-    try:
-        html = http_get(url, timeout=20, encoding="iso-8859-7")
-    except Exception as exc:
-        return [], f"{label}: {str(exc)[:80]}"
-    rows = _parse_eshop_offers(html, limit)
-    if rows:
-        return rows, f"{label}: {len(rows)} προσφορές"
-    return [], f"{label}: δεν βρέθηκαν προσφορές"
+def deals_categories():
+    """Οι διαθέσιμες κατηγορίες ζωντανών προσφορών (για τα tabs του frontend)."""
+    return [{"key": k, "name": name} for k, name, _ in _SKROUTZ_DEAL_CATS]
 
 
-def skroutz_deals(limit=24):
-    """Ζωντανές προσφορές Skroutz (/deals) — Playwright (Edge channel) + DOM
-    extraction από τις κάρτες li[data-skuid]."""
+def skroutz_deals(url="https://www.skroutz.gr/deals", limit=24):
+    """Ζωντανές προσφορές Skroutz (/deals ή /deals/c/<κατηγορία>) — Playwright
+    (Edge channel) + DOM extraction από τις κάρτες li[data-skuid]."""
     try:
         from playwright.sync_api import sync_playwright
     except Exception:
@@ -1259,8 +1235,7 @@ def skroutz_deals(limit=24):
                     pass
                 page = ctx.new_page()
                 try:
-                    page.goto("https://www.skroutz.gr/deals",
-                              wait_until="domcontentloaded", timeout=30000)
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
                     try:
                         page.wait_for_function(
                             "() => !!document.querySelector('li[data-skuid]')", timeout=12000)
@@ -1278,15 +1253,70 @@ def skroutz_deals(limit=24):
     except Exception as exc:
         return [], f"Skroutz: {str(exc)[:110]}"
     if rows:
-        return rows, f"Skroutz deals: {len(rows)} προσφορές"
-    return [], "Skroutz: δεν βρέθηκαν προσφορές"
+        return rows, f"{len(rows)} προσφορές"
+    return [], "δεν βρέθηκαν προσφορές"
 
 
-def deals_live(which="eshop_crazy", limit=24):
-    """Ενιαίο σημείο για ζωντανές προσφορές ανά πηγή."""
-    if which == "skroutz":
-        return skroutz_deals(limit)
-    return eshop_offers(which, limit)
+def deals_live(which="all", limit=24):
+    """Ζωντανές προσφορές για μία κατηγορία (μέσω Skroutz, πολλά καταστήματα)."""
+    name, url = _SKROUTZ_DEAL_MAP.get(which, _SKROUTZ_DEAL_MAP["all"])
+    rows, diag = skroutz_deals(url, limit)
+    return rows, f"{name}: {diag}"
+
+
+# --- (C) Κατάλογος καταστημάτων ανά κατηγορία (links — ειδικά για Black Friday) #
+# Σταθεροί σύνδεσμοι στις αρχικές/σελίδες προσφορών μεγάλων ελληνικών καταστημάτων.
+DEALS_SHOP_DIRECTORY = [
+    ("🖥 Τεχνολογία & Ηλεκτρονικά", [
+        ("Public", "https://www.public.gr/"),
+        ("Κωτσόβολος", "https://www.kotsovolos.gr/"),
+        ("Πλαίσιο", "https://www.plaisio.gr/"),
+        ("e-shop.gr", "https://www.e-shop.gr/offers?sid=2"),
+        ("You.gr", "https://www.you.gr/"),
+        ("Γερμανός", "https://www.germanos.gr/"),
+    ]),
+    ("🛒 Σούπερ Μάρκετ", [
+        ("Σκλαβενίτης", "https://www.sklavenitis.gr/"),
+        ("ΑΒ Βασιλόπουλος", "https://www.ab.gr/"),
+        ("My Market", "https://www.mymarket.gr/"),
+        ("Μασούτης", "https://www.masoutis.gr/"),
+    ]),
+    ("👕 Μόδα & Παπούτσια", [
+        ("Zalando", "https://www.zalando.gr/"),
+        ("About You", "https://www.aboutyou.gr/"),
+        ("Factory Outlet", "https://www.factoryoutlet.gr/"),
+        ("Cosmos Sport", "https://www.cosmossport.gr/"),
+        ("Intersport", "https://www.intersport.gr/"),
+    ]),
+    ("🏠 Σπίτι & DIY", [
+        ("IKEA", "https://www.ikea.gr/"),
+        ("Leroy Merlin", "https://www.leroymerlin.gr/"),
+        ("Praktiker", "https://www.praktiker.gr/"),
+        ("JYSK", "https://jysk.gr/"),
+    ]),
+    ("💊 Υγεία & Ομορφιά", [
+        ("Sephora", "https://www.sephora.gr/"),
+        ("Hondos Center", "https://www.hondoscenter.com/"),
+        ("Notino", "https://www.notino.gr/"),
+        ("Pharmacy295", "https://www.pharmacy295.gr/"),
+    ]),
+    ("🧸 Παιχνίδια & Παιδικά", [
+        ("Jumbo", "https://www.jumbo.gr/"),
+        ("Μουστάκας", "https://www.moustakastoys.gr/"),
+        ("Public", "https://www.public.gr/cat/toys"),
+    ]),
+    ("🔎 Marketplaces & Σύγκριση", [
+        ("Skroutz", "https://www.skroutz.gr/deals"),
+        ("BestPrice", "https://www.bestprice.gr/deals/c"),
+        ("Amazon", "https://www.amazon.de/"),
+        ("AliExpress", "https://www.aliexpress.com/"),
+    ]),
+]
+
+
+def deals_shop_directory():
+    return [{"cat": c, "shops": [{"name": n, "url": u} for n, u in shops]}
+            for c, shops in DEALS_SHOP_DIRECTORY]
 
 
 # --- Σούπερ Μάρκετ: επίσημο API posokanei.gov.gr (ex e-Katanalotis) --- #
