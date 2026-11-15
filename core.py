@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.51"
+VERSION = "0.52"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1386,6 +1386,60 @@ DEALS_SHOP_DIRECTORY = [
 def deals_shop_directory():
     return [{"cat": c, "shops": [{"name": n, "url": u} for n, u in shops]}
             for c, shops in DEALS_SHOP_DIRECTORY]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 🚗 ΠΡΟΣΦΟΡΕΣ ΑΥΤΟΚΙΝΗΤΟΥ — feed τρεχουσών προσφορών νέων αυτοκινήτων (gocar.gr)
+# gocar.gr/new-models/offers είναι server-rendered & scrapable (το car.gr έχει
+# Cloudflare). Φίλτρο μάρκας γίνεται client-side στον τίτλο.
+# ─────────────────────────────────────────────────────────────────────────────
+CAR_OFFERS_URL = "https://www.gocar.gr/new-models/offers/"
+_CAR_ART_RE = re.compile(r'<article class="post clear result[^"]*"[^>]*>(.*?)</article>', re.S)
+_CAR_HREF_RE = re.compile(r'href="(https://www\.gocar\.gr/news/feed/[^"]+)"')
+_CAR_IMG_RE = re.compile(r'data-src="(https://cdn\.gcdata\.gr/[^"]+)"')
+_CAR_ALT_RE = re.compile(r'alt="([^"]+)"')
+
+# Σύνδεσμοι σε επίσημες σελίδες προσφορών/μάρκες & aggregators (links)
+CAR_LINKS = [
+    ("Nissan", "https://www.nissan.gr/ochimata/kainourgia-ochimata/qashqai.html"),
+    ("MG", "https://mgmotor.gr/"),
+    ("Chery", "https://www.chery.gr/"),
+    ("gocar — Προσφορές", "https://www.gocar.gr/new-models/offers/"),
+    ("Car & Driver", "https://www.caranddriver.gr/"),
+    ("autotypos — Προσφορές", "https://www.autotypos.gr/category/prosfores/"),
+    ("car.gr", "https://www.car.gr/classifieds/cars/"),
+]
+
+
+def car_offers(limit=24):
+    """Τρέχουσες προσφορές ΝΕΩΝ αυτοκινήτων (gocar.gr) — τίτλος, εικόνα, link."""
+    try:
+        html = http_get(CAR_OFFERS_URL, timeout=20, encoding="utf-8")
+    except Exception as exc:
+        return [], f"Αυτοκίνητο: {str(exc)[:80]}"
+    rows, seen = [], set()
+    for m in _CAR_ART_RE.finditer(html):
+        block = m.group(1)
+        hm = _CAR_HREF_RE.search(block)
+        am = _CAR_ALT_RE.search(block)
+        if not hm or not am:
+            continue
+        url = hm.group(1)
+        if url in seen:
+            continue
+        seen.add(url)
+        im = _CAR_IMG_RE.search(block)
+        rows.append({"title": unescape(am.group(1)).strip(), "url": url,
+                     "image": im.group(1) if im else "", "source": "gocar.gr"})
+        if len(rows) >= limit:
+            break
+    if rows:
+        return rows, f"{len(rows)} προσφορές"
+    return [], "δεν βρέθηκαν προσφορές"
+
+
+def car_links():
+    return [{"name": n, "url": u} for n, u in CAR_LINKS]
 
 
 # --- Σούπερ Μάρκετ: επίσημο API posokanei.gov.gr (ex e-Katanalotis) --- #

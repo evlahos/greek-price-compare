@@ -162,6 +162,16 @@ def api_deals_live():
     return jsonify({"which": which, "products": rows, "diagnostic": diag})
 
 
+@app.get("/api/car_offers")
+def api_car_offers():
+    """Feed τρεχουσών προσφορών νέων αυτοκινήτων (gocar.gr) + χρήσιμα links."""
+    try:
+        rows, diag = core.car_offers()
+    except Exception as exc:
+        return jsonify({"offers": [], "links": [], "diagnostic": str(exc)})
+    return jsonify({"offers": rows, "links": core.car_links(), "diagnostic": diag})
+
+
 @app.get("/api/offers")
 def api_offers():
     pid = (request.args.get("product_id") or "").strip()

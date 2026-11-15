@@ -386,6 +386,7 @@ select option,.gsel option,.mini option,.sh-act select option{background:var(--b
       <button data-m="toys" data-i18n="cat_toys"></button>
       <button data-m="fuel" data-i18n="cat_fuel"></button>
       <button data-m="deals" data-i18n="cat_deals"></button>
+      <button data-m="car" data-i18n="cat_car"></button>
       <button data-m="all" data-i18n="cat_all"></button>
     </div>
     <div class="langsw" id="langsw">
@@ -528,9 +529,12 @@ const T={
     appName:'ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b>',
     cat_tech:'🖥 Τεχνολογία',cat_super:'🛒 Σούπερ Μάρκετ',cat_books:'📚 Βιβλία',
     cat_health:'💊 Υγεία & Ομορφιά',cat_fashion:'👕 Μόδα',cat_home:'🏠 Σπίτι',
-    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_fuel:'⛽ Καύσιμα',cat_deals:'🏷️ Προσφορές',cat_all:'✨ Γενική',
+    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_fuel:'⛽ Καύσιμα',cat_deals:'🏷️ Προσφορές',cat_car:'🚗 Αυτοκίνητο',cat_all:'✨ Γενική',
     sect_tech:'Προϊόντα',sect_super:'Σούπερ Μάρκετ',sect_books:'Βιβλία',sect_health:'Υγεία & Ομορφιά',
-    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_deals:'Προσφορές & Events',sect_all:'Γενική αναζήτηση',
+    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_deals:'Προσφορές & Events',sect_car:'Προσφορές Αυτοκινήτου',sect_all:'Γενική αναζήτηση',
+    car_filter_ph:'Φίλτρο μάρκας/μοντέλου…',car_offers_title:'🚗 Τρέχουσες προσφορές νέων αυτοκινήτων',
+    car_links_title:'🔗 Μάρκες & πηγές προσφορών',car_loading:'Φόρτωση προσφορών αυτοκινήτου…',
+    car_none:'Δεν βρέθηκαν προσφορές αυτή τη στιγμή.',car_src:'Πηγή: gocar.gr',car_allbrands:'Όλες',
     deals_filter_ph:'Οι προσφορές ανανεώνονται αυτόματα',
     deals_cal_title:'📅 Ημερολόγιο προσφορών',deals_live_title:'🔥 Ζωντανές προσφορές τώρα',
     deals_now:'ΤΩΡΑ',deals_today:'Σήμερα',deals_in:'σε',deals_days:'μέρες',deals_day:'μέρα',
@@ -613,9 +617,12 @@ const T={
     appName:'PRICE <b>COMPARE</b>',
     cat_tech:'🖥 Technology',cat_super:'🛒 Supermarket',cat_books:'📚 Books',
     cat_health:'💊 Health & Beauty',cat_fashion:'👕 Fashion',cat_home:'🏠 Home',
-    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_fuel:'⛽ Fuel',cat_deals:'🏷️ Deals',cat_all:'✨ General',
+    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_fuel:'⛽ Fuel',cat_deals:'🏷️ Deals',cat_car:'🚗 Car',cat_all:'✨ General',
     sect_tech:'Products',sect_super:'Supermarket',sect_books:'Books',sect_health:'Health & Beauty',
-    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_deals:'Deals & Events',sect_all:'General search',
+    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_deals:'Deals & Events',sect_car:'Car Offers',sect_all:'General search',
+    car_filter_ph:'Filter by brand/model…',car_offers_title:'🚗 Current new-car offers',
+    car_links_title:'🔗 Brands & offer sources',car_loading:'Loading car offers…',
+    car_none:'No offers found right now.',car_src:'Source: gocar.gr',car_allbrands:'All',
     deals_filter_ph:'Deals refresh automatically',
     deals_cal_title:'📅 Deals calendar',deals_live_title:'🔥 Live deals right now',
     deals_now:'NOW',deals_today:'Today',deals_in:'in',deals_days:'days',deals_day:'day',
@@ -771,18 +778,18 @@ function renderChips(){
   });
 }
 function setMode(m){
-  const wasSpecial=(mode==='fuel'||mode==='deals');
+  const wasSpecial=(mode==='fuel'||mode==='deals'||mode==='car');
   mode=m;$$('#seg button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
   $('#sectlbl').textContent=t('sect_'+m);
   if(curES){try{curES.close()}catch(e){}curES=null}
   streaming=false;curStop=null;updateStopBtn('hidden');
   srcStat={};srcHidden={};$('#srcStatus').innerHTML='';
-  const isSpecial=(m==='fuel'||m==='deals');
+  const isSpecial=(m==='fuel'||m==='deals'||m==='car');
   if(isSpecial){
     if(!wasSpecial){_qStash=$('#q').value;$('#q').value='';}
-    $('#q').placeholder=(m==='fuel')?t('fuel_filter_ph'):t('deals_filter_ph');
+    $('#q').placeholder=(m==='fuel')?t('fuel_filter_ph'):(m==='car')?t('car_filter_ph'):t('deals_filter_ph');
     $('#chips').style.display='none';
-    if(m==='fuel')loadFuel(); else loadDeals();
+    if(m==='fuel')loadFuel(); else if(m==='car')loadCar(); else loadDeals();
   } else {
     if(wasSpecial){ if(_qStash!=null){$('#q').value=_qStash;_qStash=null;} const g=$('#grid');g.classList.remove('fuelmode');g.classList.remove('dealsmode');g.innerHTML=''; $('#statusTxt').textContent=t('status_ready'); }
     $('#q').placeholder=t('q_ph');
@@ -909,13 +916,14 @@ async function doSearch(exact){
 function runSearch(exact){
   if(mode==='fuel'){ loadFuel(); return; }
   if(mode==='deals'){ loadDeals(); return; }
+  if(mode==='car'){ renderCarCards(); return; }
   if(window.EventSource) doSearchStream(exact); else doSearch(exact);
 }
 $('#go').onclick=()=>runSearch(false);
 $('#gox').onclick=()=>runSearch(true);
 $('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runSearch(false)});
-$('#q').addEventListener('input',()=>{if(mode==='fuel'){if(fuelView==='stations')renderStationsList();else renderAverages();}});
-$('#clear').onclick=()=>{$('#q').value='';$('#q').focus();if(mode==='fuel')renderFuel()};
+$('#q').addEventListener('input',()=>{if(mode==='fuel'){if(fuelView==='stations')renderStationsList();else renderAverages();}else if(mode==='car'){renderCarCards();}});
+$('#clear').onclick=()=>{$('#q').value='';$('#q').focus();if(mode==='fuel')renderFuel();else if(mode==='car')renderCarCards()};
 
 function skelCards(n){return Array(Math.max(0,n|0)).fill('<div class="sk"></div>').join('')}
 function skeletons(){const g=$('#grid');g.classList.remove('fuelmode');g.innerHTML=skelCards(8)}
@@ -1172,6 +1180,47 @@ function renderDealCards(list){
       <div class="thumb" style="${img}">${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(srcDisplay(p.source||''))}</span></div>
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
         <div class="meta"><div class="price">${euro(p.price_from)}</div></div></div></a>`;
+  }).join('');
+}
+
+/* ---------- 🚗 Αυτοκίνητο ---------- */
+let carData=null, carLoading=false, carBrand='';
+const CAR_BRANDS=['Nissan','MG','Chery','Peugeot','Toyota','Hyundai','Kia','Citroen'];
+async function loadCar(){
+  if(carLoading)return; carLoading=true;
+  const g=$('#grid'); g.classList.remove('fuelmode'); g.classList.add('dealsmode');
+  g.innerHTML=skelCards(6); busy(true,t('car_loading'));
+  try{ carData=await api('/api/car_offers'); }
+  catch(e){ carData={offers:[],links:[]}; }
+  carLoading=false; busy(false,''); $('#statusTxt').textContent='';
+  renderCar();
+}
+function renderCar(){
+  const g=$('#grid'); g.classList.add('dealsmode');
+  const links=((carData&&carData.links)||[]).map(l=>`<a class="dlink" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
+  const chips=['', ...CAR_BRANDS].map(b=>`<button class="dtab${carBrand===b?' on':''}" data-b="${esc(b)}">${b?esc(b):esc(t('car_allbrands'))}</button>`).join('');
+  g.innerHTML=`<div class="deals-wrap">
+    <div class="dsec-title">${esc(t('car_offers_title'))}</div>
+    <div class="dtabs">${chips}</div>
+    <div id="carGrid" class="grid-p dealslive"></div>
+    <div class="dsec-title">${esc(t('car_links_title'))}</div>
+    <div class="dshop-links" style="padding:0 4px 8px">${links}</div></div>`;
+  $$('#grid .dtab').forEach(b=>b.onclick=()=>{carBrand=b.dataset.b;renderCar();});
+  renderCarCards();
+}
+function renderCarCards(){
+  const box=$('#carGrid'); if(!box)return;
+  let list=((carData&&carData.offers)||[]).slice();
+  const brand=(carBrand||'').toLowerCase();
+  const q=(typeof norm==='function'?norm($('#q').value||''):($('#q').value||'').toLowerCase().trim());
+  if(brand) list=list.filter(o=>(o.title||'').toLowerCase().includes(brand));
+  if(q) list=list.filter(o=>(typeof norm==='function'?norm(o.title||''):(o.title||'').toLowerCase()).includes(q));
+  if(!list.length){ box.innerHTML=`<div class="empty"><div class="big">🚗</div>${esc(t('car_none'))}</div>`; return; }
+  box.innerHTML=list.map(o=>{
+    const img=o.image?`background-image:url('${esc(o.image)}')`:'';
+    return `<a class="card dealcard" href="${esc(o.url||'#')}" target="_blank" rel="noopener">
+      <div class="thumb" style="${img}"><span class="src">${esc(o.source||'gocar.gr')}</span></div>
+      <div class="body"><div class="ttl">${esc(o.title||'')}</div></div></a>`;
   }).join('');
 }
 
