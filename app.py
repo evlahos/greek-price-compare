@@ -164,12 +164,18 @@ def api_deals_live():
 
 @app.get("/api/car_offers")
 def api_car_offers():
-    """Feed τρεχουσών προσφορών νέων αυτοκινήτων (gocar.gr) + χρήσιμα links."""
+    """Feed τρεχουσών προσφορών νέων αυτοκινήτων (gocar.gr / autotriti.gr) + links."""
+    src = (request.args.get("src") or "gocar").strip()
     try:
-        rows, diag = core.car_offers()
+        if src == "autotriti":
+            with _PW_LOCK:
+                rows, diag = core.car_offers(src)
+        else:
+            rows, diag = core.car_offers(src)
     except Exception as exc:
-        return jsonify({"offers": [], "links": [], "diagnostic": str(exc)})
-    return jsonify({"offers": rows, "links": core.car_links(), "diagnostic": diag})
+        return jsonify({"offers": [], "links": [], "sources": [], "diagnostic": str(exc)})
+    return jsonify({"offers": rows, "links": core.car_links(),
+                    "sources": core.car_sources(), "src": src, "diagnostic": diag})
 
 
 @app.get("/api/offers")

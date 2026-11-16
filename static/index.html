@@ -1184,33 +1184,47 @@ function renderDealCards(list){
 }
 
 /* ---------- 🚗 Αυτοκίνητο ---------- */
-let carData=null, carLoading=false, carBrand='';
+let carBrand='', carSrc='gocar', carCache={}, carMeta={links:[],sources:[]};
 const CAR_BRANDS=['Nissan','MG','Chery','Peugeot','Toyota','Hyundai','Kia','Citroen'];
 async function loadCar(){
-  if(carLoading)return; carLoading=true;
   const g=$('#grid'); g.classList.remove('fuelmode'); g.classList.add('dealsmode');
-  g.innerHTML=skelCards(6); busy(true,t('car_loading'));
-  try{ carData=await api('/api/car_offers'); }
-  catch(e){ carData={offers:[],links:[]}; }
-  carLoading=false; busy(false,''); $('#statusTxt').textContent='';
+  renderCar();
+  await loadCarSource(carSrc);
+}
+async function loadCarSource(src){
+  if(carCache[src]){ renderCar(); return; }
+  const box=$('#carGrid'); if(box) box.innerHTML=skelCards(6);
+  busy(true,t('car_loading'));
+  let d; try{ d=await api('/api/car_offers?src='+encodeURIComponent(src)); }
+  catch(e){ d={offers:[],links:[],sources:[]}; }
+  busy(false,''); $('#statusTxt').textContent='';
+  carCache[src]=d.offers||[];
+  if(d.links&&d.links.length) carMeta.links=d.links;
+  if(d.sources&&d.sources.length) carMeta.sources=d.sources;
+  if(src!==carSrc) return;
   renderCar();
 }
 function renderCar(){
   const g=$('#grid'); g.classList.add('dealsmode');
-  const links=((carData&&carData.links)||[]).map(l=>`<a class="dlink" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
+  const links=(carMeta.links||[]).map(l=>`<a class="dlink" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.name)}</a>`).join('');
+  const srcs=(carMeta.sources&&carMeta.sources.length)?carMeta.sources:[{key:'gocar',name:'gocar.gr'},{key:'autotriti',name:'autotriti.gr'}];
+  const srcTabs=srcs.map(s=>`<button class="dtab${carSrc===s.key?' on':''}" data-s="${esc(s.key)}">${esc(s.name)}</button>`).join('');
   const chips=['', ...CAR_BRANDS].map(b=>`<button class="dtab${carBrand===b?' on':''}" data-b="${esc(b)}">${b?esc(b):esc(t('car_allbrands'))}</button>`).join('');
   g.innerHTML=`<div class="deals-wrap">
     <div class="dsec-title">${esc(t('car_offers_title'))}</div>
+    <div class="dtabs">${srcTabs}</div>
     <div class="dtabs">${chips}</div>
     <div id="carGrid" class="grid-p dealslive"></div>
     <div class="dsec-title">${esc(t('car_links_title'))}</div>
     <div class="dshop-links" style="padding:0 4px 8px">${links}</div></div>`;
-  $$('#grid .dtab').forEach(b=>b.onclick=()=>{carBrand=b.dataset.b;renderCar();});
+  $$('#grid .dtab[data-s]').forEach(b=>b.onclick=()=>{carSrc=b.dataset.s;renderCar();loadCarSource(carSrc);});
+  $$('#grid .dtab[data-b]').forEach(b=>b.onclick=()=>{carBrand=b.dataset.b;renderCarCards();});
   renderCarCards();
 }
 function renderCarCards(){
   const box=$('#carGrid'); if(!box)return;
-  let list=((carData&&carData.offers)||[]).slice();
+  if(!carCache[carSrc]){ box.innerHTML=skelCards(6); return; }
+  let list=(carCache[carSrc]||[]).slice();
   const brand=(carBrand||'').toLowerCase();
   const q=(typeof norm==='function'?norm($('#q').value||''):($('#q').value||'').toLowerCase().trim());
   if(brand) list=list.filter(o=>(o.title||'').toLowerCase().includes(brand));
@@ -1219,7 +1233,7 @@ function renderCarCards(){
   box.innerHTML=list.map(o=>{
     const img=o.image?`background-image:url('${esc(o.image)}')`:'';
     return `<a class="card dealcard" href="${esc(o.url||'#')}" target="_blank" rel="noopener">
-      <div class="thumb" style="${img}"><span class="src">${esc(o.source||'gocar.gr')}</span></div>
+      <div class="thumb" style="${img}"><span class="src">${esc(o.source||'')}</span></div>
       <div class="body"><div class="ttl">${esc(o.title||'')}</div></div></a>`;
   }).join('');
 }

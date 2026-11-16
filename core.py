@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.52"
+VERSION = "0.53"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1399,24 +1399,55 @@ _CAR_HREF_RE = re.compile(r'href="(https://www\.gocar\.gr/news/feed/[^"]+)"')
 _CAR_IMG_RE = re.compile(r'data-src="(https://cdn\.gcdata\.gr/[^"]+)"')
 _CAR_ALT_RE = re.compile(r'alt="([^"]+)"')
 
+# autotriti.gr: ειδική σελίδα προσφορών/τιμών — JS-rendered (θέλει Playwright)
+_CAR_AUTOTRITI_URL = "https://www.autotriti.gr/news/prosfores.asp"
+_CAR_AUTOTRITI_JS = r"""() => {
+  const out = [];
+  document.querySelectorAll('article.clear').forEach(a => {
+    const l = a.querySelector('a[href]');
+    if (!l) return;
+    let href = l.getAttribute('href') || '';
+    if (href && !/^https?:/.test(href)) href = 'https://www.autotriti.gr' + href;
+    const h = a.querySelector('h3, h2');
+    const title = ((l.getAttribute('title') || (h ? h.textContent : '')) || '').replace(/\s+/g, ' ').trim();
+    const im = a.querySelector('img');
+    let img = im ? (im.getAttribute('src') || im.getAttribute('data-src') || '') : '';
+    if (img && !/^https?:/.test(img)) img = 'https://www.autotriti.gr' + img;
+    if (title && href) out.push({title: title, url: href, image: img});
+  });
+  return out.slice(0, 30);
+}"""
+
 # Σύνδεσμοι σε επίσημες σελίδες προσφορών/μάρκες & aggregators (links)
 CAR_LINKS = [
     ("Nissan", "https://www.nissan.gr/ochimata/kainourgia-ochimata/qashqai.html"),
     ("MG", "https://mgmotor.gr/"),
     ("Chery", "https://www.chery.gr/"),
     ("gocar — Προσφορές", "https://www.gocar.gr/new-models/offers/"),
+    ("autotriti — Προσφορές", "https://www.autotriti.gr/news/prosfores.asp"),
+    ("autotriti — Τιμές νέων", "https://www.autotriti.gr/newcars/times/"),
     ("Car & Driver", "https://www.caranddriver.gr/"),
     ("autotypos — Προσφορές", "https://www.autotypos.gr/category/prosfores/"),
     ("car.gr", "https://www.car.gr/classifieds/cars/"),
 ]
 
+# Διαθέσιμες πηγές προσφορών αυτοκινήτου (για tabs στο frontend)
+CAR_SOURCES = [
+    ("gocar", "gocar.gr"),
+    ("autotriti", "autotriti.gr"),
+]
 
-def car_offers(limit=24):
-    """Τρέχουσες προσφορές ΝΕΩΝ αυτοκινήτων (gocar.gr) — τίτλος, εικόνα, link."""
+
+def car_sources():
+    return [{"key": k, "name": n} for k, n in CAR_SOURCES]
+
+
+def _car_offers_gocar(limit=24):
+    """gocar.gr/new-models/offers — server-rendered (γρήγορο HTTP)."""
     try:
         html = http_get(CAR_OFFERS_URL, timeout=20, encoding="utf-8")
     except Exception as exc:
-        return [], f"Αυτοκίνητο: {str(exc)[:80]}"
+        return [], f"gocar: {str(exc)[:80]}"
     rows, seen = [], set()
     for m in _CAR_ART_RE.finditer(html):
         block = m.group(1)
@@ -1436,6 +1467,63 @@ def car_offers(limit=24):
     if rows:
         return rows, f"{len(rows)} προσφορές"
     return [], "δεν βρέθηκαν προσφορές"
+
+
+def _car_offers_autotriti(limit=24):
+    """autotriti.gr προσφορές — JS-rendered, μέσω Playwright (Edge channel)."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        return [], f"autotriti: {PLAYWRIGHT_HINT}"
+    rows = []
+    try:
+        with sync_playwright() as pw:
+            try:
+                browser = launch_chromium(pw, extra_args=_STEALTH_ARGS)
+            except Exception as exc:
+                return [], f"autotriti: δεν ξεκίνησε browser — {str(exc)[:80]}"
+            try:
+                ctx = browser.new_context(user_agent=_UA, locale="el-GR",
+                                          timezone_id="Europe/Athens",
+                                          viewport={"width": 1366, "height": 900})
+                page = ctx.new_page()
+                try:
+                    page.goto(_CAR_AUTOTRITI_URL, wait_until="domcontentloaded", timeout=30000)
+                    try:
+                        page.wait_for_function(
+                            "() => document.querySelectorAll('article.clear').length > 3", timeout=10000)
+                    except Exception:
+                        page.wait_for_timeout(3000)
+                    items = page.evaluate(_CAR_AUTOTRITI_JS) or []
+                    seen = set()
+                    for it in items:
+                        u = it.get("url")
+                        if not it.get("title") or not u or u in seen:
+                            continue
+                        seen.add(u)
+                        rows.append({"title": it["title"], "url": u,
+                                     "image": it.get("image", ""), "source": "autotriti.gr"})
+                        if len(rows) >= limit:
+                            break
+                finally:
+                    try:
+                        page.close()
+                    except Exception:
+                        pass
+            finally:
+                browser.close()
+    except Exception as exc:
+        return [], f"autotriti: {str(exc)[:110]}"
+    if rows:
+        return rows, f"{len(rows)} προσφορές"
+    return [], "δεν βρέθηκαν προσφορές"
+
+
+def car_offers(src="gocar", limit=24):
+    """Τρέχουσες προσφορές ΝΕΩΝ αυτοκινήτων ανά πηγή (gocar: γρήγορο· autotriti: render)."""
+    if src == "autotriti":
+        return _car_offers_autotriti(limit)
+    return _car_offers_gocar(limit)
 
 
 def car_links():
