@@ -180,13 +180,70 @@ def api_car_offers():
 
 @app.get("/api/reviews")
 def api_reviews():
-    """Κριτικές/δοκιμές για ένα προϊόν ή μοντέλο από πολλά περιοδικά & sites."""
+    """Κριτικές/δοκιμές (άρθρα ή video) από πολλά περιοδικά, sites & YouTube."""
     q = (request.args.get("q") or "").strip()
+    src = (request.args.get("src") or "articles").strip()
     try:
-        rows, diag = core.reviews(q)
+        if src == "video":
+            with _PW_LOCK:   # σειριοποίηση όχι απαραίτητη, αλλά κρατά ένα fetch τη φορά
+                rows, diag = core.reviews(q, src)
+        else:
+            rows, diag = core.reviews(q, src)
     except Exception as exc:
-        return jsonify({"reviews": [], "diagnostic": str(exc), "q": q})
-    return jsonify({"reviews": rows, "diagnostic": diag, "q": q})
+        return jsonify({"reviews": [], "diagnostic": str(exc), "q": q, "src": src})
+    return jsonify({"reviews": rows, "diagnostic": diag, "q": q, "src": src})
+
+
+@app.post("/api/price_verdicts")
+def api_price_verdicts():
+    """Μαζική «ετυμηγορία» τιμής ανά τίτλο από το τοπικό ιστορικό (price_log):
+    low (ιστορικό χαμηλό) / deal (προσφορά) / high (ακριβό τώρα) / null."""
+    data = request.get_json(silent=True) or {}
+    items = data.get("items") or []
+    titles = [str(it.get("title") or "").strip() for it in items if it.get("title")]
+    titles = [t for t in titles if t][:60]
+    out = {}
+    if not titles:
+        return jsonify({"verdicts": out})
+    since = time.time() - 90 * 86400
+    try:
+        with _DB_LOCK:
+            conn = _db()
+            qmarks = ",".join("?" * len(titles))
+            cur = conn.execute(
+                f"SELECT title, price FROM price_log WHERE ts>=? AND title IN ({qmarks})",
+                [since] + titles)
+            rows = cur.fetchall()
+            conn.close()
+    except Exception as exc:
+        return jsonify({"verdicts": out, "error": str(exc)})
+    hist = {}
+    for title, price in rows:
+        if price is not None:
+            hist.setdefault(title, []).append(float(price))
+    cur_price = {str(it.get("title") or "").strip(): it.get("price") for it in items}
+    for title, series in hist.items():
+        if len(series) < 5:
+            continue
+        cp = cur_price.get(title)
+        try:
+            cp = float(cp)
+        except (TypeError, ValueError):
+            continue
+        low = min(series)
+        srt = sorted(series)
+        n = len(srt)
+        med = srt[n // 2] if n % 2 else (srt[n // 2 - 1] + srt[n // 2]) / 2
+        verdict = None
+        if cp <= low * 1.01:
+            verdict = "low"
+        elif cp <= med * 0.93:
+            verdict = "deal"
+        elif cp >= med * 1.08:
+            verdict = "high"
+        if verdict:
+            out[title] = {"verdict": verdict, "low": round(low, 2), "med": round(med, 2)}
+    return jsonify({"verdicts": out})
 
 
 @app.get("/api/offers")

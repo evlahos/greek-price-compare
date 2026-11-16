@@ -231,6 +231,12 @@ body{
 .card .cmp:hover{color:var(--ink);border-color:var(--cy)}
 .card.sel{border-color:var(--cy);box-shadow:0 0 0 1px var(--cy),0 20px 44px -22px rgba(34,211,238,.6)}
 .card.sel .cmp{background:var(--grad);color:#06101f;border-color:transparent}
+.card .revb{position:absolute;top:10px;right:48px;width:30px;height:30px;border-radius:9px;border:1px solid var(--stroke2);
+  background:rgba(4,8,18,.72);cursor:pointer;font-size:14px;display:grid;place-items:center;transition:.2s;z-index:3}
+.card .revb:hover{border-color:var(--am);filter:brightness(1.25)}
+.tag.vbadge.low{background:#34d39922;color:#34d399;border:1px solid #34d39955}
+.tag.vbadge.deal{background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55}
+.tag.vbadge.high{background:#f8717122;color:#f87171;border:1px solid #f8717155}
 .cmpbtn{position:fixed;right:22px;bottom:92px;z-index:35;height:50px;padding:0 20px;border:1px solid var(--stroke2);border-radius:999px;
   background:rgba(11,18,34,.92);backdrop-filter:blur(10px);color:var(--ink);font:700 14px Inter;cursor:pointer;display:none;align-items:center;gap:9px}
 .cmpbtn.show{display:flex}
@@ -540,6 +546,8 @@ const T={
     sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_deals:'Προσφορές & Events',sect_car:'Προσφορές Αυτοκινήτου',sect_reviews:'Κριτικές & Δοκιμές',sect_all:'Γενική αναζήτηση',
     rev_ph:'Προϊόν ή μοντέλο για κριτικές…',rev_hint:'Γράψε ένα προϊόν ή μοντέλο και πάτα Αναζήτηση για κριτικές από περιοδικά & sites.',
     rev_title:'⭐ Κριτικές & δοκιμές',rev_loading:'Αναζήτηση κριτικών…',rev_none:'Δεν βρέθηκαν κριτικές. Δοκίμασε άλλον όρο.',
+    rev_tab_articles:'📰 Άρθρα',rev_tab_video:'📺 Video',rev_btn:'Κριτικές',
+    notif_title:'Πτώση τιμής στη watchlist!',notif_target:'στόχος',
     car_filter_ph:'Φίλτρο μάρκας/μοντέλου…',car_offers_title:'🚗 Τρέχουσες προσφορές νέων αυτοκινήτων',
     car_links_title:'🔗 Μάρκες & πηγές προσφορών',car_loading:'Φόρτωση προσφορών αυτοκινήτου…',
     car_none:'Δεν βρέθηκαν προσφορές αυτή τη στιγμή.',car_src:'Πηγή: gocar.gr',car_allbrands:'Όλες',
@@ -630,6 +638,8 @@ const T={
     sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_deals:'Deals & Events',sect_car:'Car Offers',sect_reviews:'Reviews & Tests',sect_all:'General search',
     rev_ph:'Product or model for reviews…',rev_hint:'Type a product or model and press Search for reviews from magazines & sites.',
     rev_title:'⭐ Reviews & tests',rev_loading:'Searching reviews…',rev_none:'No reviews found. Try another term.',
+    rev_tab_articles:'📰 Articles',rev_tab_video:'📺 Video',rev_btn:'Reviews',
+    notif_title:'Price drop in your watchlist!',notif_target:'target',
     car_filter_ph:'Filter by brand/model…',car_offers_title:'🚗 Current new-car offers',
     car_links_title:'🔗 Brands & offer sources',car_loading:'Loading car offers…',
     car_none:'No offers found right now.',car_src:'Source: gocar.gr',car_allbrands:'All',
@@ -1257,21 +1267,51 @@ function renderCarCards(){
 }
 
 /* ---------- ⭐ Κριτικές (Reviews) ---------- */
+let revSrc='articles', revQ='', revCache={};
+function openReviewsFor(title){           // από κουμπί σε κάρτα → κριτικές του προϊόντος
+  title=(title||'').trim(); if(!title)return;
+  setMode('reviews'); $('#q').value=title; revSrc='articles'; doReviews(title);
+}
 async function doReviews(q){
   q=(q||'').trim(); if(!q)return;
-  const g=$('#grid'); g.classList.remove('fuelmode','dealsmode'); g.innerHTML=skelCards(5); busy(true,t('rev_loading'));
-  let d; try{ d=await api('/api/reviews?q='+encodeURIComponent(q)); }
+  revQ=q; await loadReviews();
+}
+async function loadReviews(){
+  const key=revSrc+'|'+revQ;
+  renderReviewsShell();
+  const box=$('#revGrid');
+  if(revCache[key]){ renderReviews(revCache[key]); return; }
+  if(box) box.innerHTML=skelCards(5);
+  busy(true,t('rev_loading'));
+  let d; try{ d=await api('/api/reviews?src='+encodeURIComponent(revSrc)+'&q='+encodeURIComponent(revQ)); }
   catch(e){ d={reviews:[]}; }
   busy(false,''); $('#statusTxt').textContent='';
-  renderReviews((d&&d.reviews)||[]);
+  revCache[key]=(d&&d.reviews)||[];
+  renderReviews(revCache[key]);
+}
+function renderReviewsShell(){
+  const g=$('#grid'); g.classList.remove('fuelmode','dealsmode');
+  const tabs=[['articles','rev_tab_articles'],['video','rev_tab_video']]
+    .map(([k,l])=>`<button class="dtab${revSrc===k?' on':''}" data-r="${k}">${esc(t(l))}</button>`).join('');
+  g.innerHTML=`<div class="deals-wrap"><div class="dsec-title">${esc(t('rev_title'))} — ${esc(revQ)}</div>
+    <div class="dtabs">${tabs}</div><div id="revGrid" class="rev-list"></div></div>`;
+  $$('#grid .dtab[data-r]').forEach(b=>b.onclick=()=>{revSrc=b.dataset.r;loadReviews();});
 }
 function renderReviews(list){
-  const g=$('#grid'); g.classList.remove('fuelmode','dealsmode');
-  if(!list.length){ g.innerHTML=`<div class="empty"><div class="big">⭐</div>${esc(t('rev_none'))}</div>`; return; }
-  g.innerHTML=`<div class="deals-wrap"><div class="dsec-title">${esc(t('rev_title'))}</div>
-    <div class="rev-list">`+list.map(r=>`<a class="rev-item" href="${esc(r.url)}" target="_blank" rel="noopener">
+  const box=$('#revGrid'); if(!box)return;
+  if(!list.length){ box.innerHTML=`<div class="empty"><div class="big">⭐</div>${esc(t('rev_none'))}</div>`; return; }
+  if(revSrc==='video'){
+    box.className='grid-p dealslive';
+    box.innerHTML=list.map(r=>{const img=r.image?`background-image:url('${esc(r.image)}')`:'';
+      return `<a class="card dealcard" href="${esc(r.url)}" target="_blank" rel="noopener">
+        <div class="thumb" style="${img}"><span class="src">▶ ${esc(r.source||'YouTube')}</span></div>
+        <div class="body"><div class="ttl">${esc(r.title||'')}</div></div></a>`;}).join('');
+  } else {
+    box.className='rev-list';
+    box.innerHTML=list.map(r=>`<a class="rev-item" href="${esc(r.url)}" target="_blank" rel="noopener">
       <div class="rev-ttl">${esc(r.title||'')}</div>
-      <div class="rev-meta">${esc(r.source||'')}${r.date?' · '+esc(r.date):''}</div></a>`).join('')+`</div></div>`;
+      <div class="rev-meta">${esc(r.source||'')}${r.date?' · '+esc(r.date):''}</div></a>`).join('');
+  }
 }
 
 function renderProducts(){
@@ -1295,14 +1335,35 @@ function renderProducts(){
     const sel=compare.includes(p);
     return `<div class="card${sel?' sel':''}" style="animation-delay:${i*40}ms" data-i="${i}">
       <button class="cmp" data-i="${i}" title="${esc(t('add_compare_t'))}">⇄</button>
+      <button class="revb" data-ri="${i}" title="${esc(t('rev_btn'))}">⭐</button>
       <div class="thumb" style="${img}">${low}${p.image?'':`<span class="ph">${esc(t('no_photo'))}</span>`}<span class="src">${esc(srcDisplay(p.source||''))}</span></div>
       <div class="body"><div class="ttl">${esc(p.title||'—')}</div>
         <div class="meta"><div class="price"><small>${esc(t('from'))}</small>${euro(p.price_from)}</div>
-        <div class="tags">${rtag}${cnt}${utag}</div></div></div></div>`;
+        <div class="tags"><span class="tag vbadge" data-i="${i}" style="display:none"></span>${rtag}${cnt}${utag}</div></div></div></div>`;
   }).join('')+(streaming&&pendingCount()>0?skelCards(Math.min(pendingCount()*2,6)):'');
   $$('#grid .card').forEach(c=>c.onclick=()=>openProduct(+c.dataset.i));
   $$('#grid .cmp').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleCompare(products[+b.dataset.i])});
+  $$('#grid .revb').forEach(b=>b.onclick=e=>{e.stopPropagation();const p=products[+b.dataset.ri];if(p)openReviewsFor(p.title)});
   lazyImages();
+  annotateVerdicts();
+}
+
+/* ⭐ «Αξίζει τώρα;» — badge ιστορικού τιμής πάνω στις κάρτες (batch από price_log) */
+async function annotateVerdicts(){
+  if(mode==='fuel'||mode==='deals'||mode==='car'||mode==='reviews')return;
+  const snap=products.slice();
+  const items=snap.map(p=>({title:p.title,price:parseFloat(p.price_from)})).filter(x=>x.title&&isFinite(x.price));
+  if(!items.length)return;
+  let d; try{ d=await (await fetch('/api/price_verdicts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items})})).json(); }
+  catch(e){ return; }
+  if(products!==snap)return;                 // άλλαξαν τα αποτελέσματα στο μεταξύ
+  const vs=(d&&d.verdicts)||{};
+  const lbl={low:t('intel_atl'),deal:t('intel_deal'),high:t('intel_high')};
+  snap.forEach((p,i)=>{
+    const v=vs[p.title]; if(!v||!lbl[v.verdict])return;
+    const el=document.querySelector(`#grid .card[data-i="${i}"] .vbadge`); if(!el)return;
+    el.className='tag vbadge '+v.verdict; el.textContent=lbl[v.verdict]; el.style.display='';
+  });
 }
 
 /* ---------- lazy-load εικόνων που λείπουν (π.χ. BestPrice) ---------- */
@@ -1868,11 +1929,38 @@ document.addEventListener('keydown',e=>{
 
 /* ---------- init ---------- */
 setTheme(THEME);
+/* ---------- 🔔 Ειδοποιήσεις watchlist (έλεγχος τιμών + browser notification) ---------- */
+async function checkAlertsNotify(){
+  try{
+    const d=await (await fetch('/api/alerts/check',{method:'POST'})).json();
+    const tr=(d&&d.triggered)||[];
+    if(!tr.length)return;
+    let seen=[]; try{seen=load('gpc_alert_notified',[])||[]}catch(e){}
+    const key=x=>x.title+'@'+x.price;
+    const fresh=tr.filter(x=>!seen.includes(key(x)));
+    fresh.forEach(x=>{
+      const msg=`${x.title}: ${euro(x.price)} (${t('notif_target')} ${euro(x.target)})`;
+      toast('🔔 '+msg,'🔔');
+      try{ if(window.Notification&&Notification.permission==='granted') new Notification('🔔 '+t('notif_title'),{body:msg}); }catch(e){}
+    });
+    try{save('gpc_alert_notified',tr.map(key).slice(-80))}catch(e){}
+  }catch(e){}
+}
+function initAlertNotify(){
+  let al=[]; try{al=load('gpc_alerts',[])||[]}catch(e){}
+  if(!al.length)return;                                   // μόνο αν υπάρχει watchlist
+  if(window.Notification&&Notification.permission==='default'){try{Notification.requestPermission()}catch(e){}}
+  let last=0; try{last=+load('gpc_alert_last',0)||0}catch(e){}
+  if(Date.now()-last>6*3600*1000){ checkAlertsNotify(); try{save('gpc_alert_last',Date.now())}catch(e){} }
+  setInterval(()=>{checkAlertsNotify();try{save('gpc_alert_last',Date.now())}catch(e){}}, 2*3600*1000);
+}
+
 setLang(LANG);
 setMode(mode);
 renderHistory();cartCount();updateCmp();
 refreshAlertBadge();
 setTimeout(maybeIntro,500);
+setTimeout(initAlertNotify,2500);
 (async()=>{try{const v=await api('/api/version');if(v&&v.version)$('#verTag').textContent='v'+v.version;}catch(e){}})();
 </script>
 </body>

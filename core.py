@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.54"
+VERSION = "0.55"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1542,9 +1542,8 @@ _REV_SRC_RE = re.compile(r"<source[^>]*>(.*?)</source>", re.S)
 _REV_DATE_RE = re.compile(r"<pubDate>(.*?)</pubDate>", re.S)
 
 
-def reviews(query, limit=20):
-    """Κριτικές/δοκιμές για ένα προϊόν ή μοντέλο, από πολλά περιοδικά & sites
-    (Google News RSS). Δουλεύει για κάθε κατηγορία, όχι μόνο αυτοκίνητα."""
+def _reviews_articles(query, limit=20):
+    """Κριτικές/δοκιμές (άρθρα) από πολλά περιοδικά & sites (Google News RSS)."""
     q = (query or "").strip()
     if not q:
         return [], "Δώσε προϊόν ή μοντέλο"
@@ -1568,12 +1567,63 @@ def reviews(query, limit=20):
         date = dm.group(1)[5:16].strip() if dm else ""   # «16 Nov 2026»
         if title and lm.group(1).strip():
             rows.append({"title": title, "url": lm.group(1).strip(),
-                         "source": src, "date": date})
+                         "source": src, "date": date, "kind": "article"})
         if len(rows) >= limit:
             break
     if rows:
         return rows, f"{len(rows)} κριτικές"
     return [], "δεν βρέθηκαν κριτικές"
+
+
+def _json_unescape(s):
+    try:
+        return json.loads('"' + s + '"')
+    except Exception:
+        return s.encode("utf-8").decode("unicode_escape", "ignore")
+
+
+_YT_TITLE_RE = re.compile(r'"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*?)"')
+_YT_CHAN_RE = re.compile(r'"(?:longBylineText|ownerText)":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*?)"')
+
+
+def youtube_reviews(query, limit=10):
+    """Video κριτικές/δοκιμές από YouTube (scrape ytInitialData — videoId/τίτλος/κανάλι)."""
+    q = (query or "").strip()
+    if not q:
+        return [], "Δώσε προϊόν ή μοντέλο"
+    url = "https://www.youtube.com/results?search_query=" + urllib.parse.quote(q + " review") + "&hl=el"
+    try:
+        html = http_get(url, timeout=20, encoding="utf-8")
+    except Exception as exc:
+        return [], f"YouTube: {str(exc)[:80]}"
+    rows, seen = [], set()
+    for part in html.split('"videoRenderer":{"videoId":"')[1:]:
+        vid = part[:11]
+        if len(vid) != 11 or vid in seen:
+            continue
+        tm = _YT_TITLE_RE.search(part[:2000])
+        if not tm:
+            continue
+        seen.add(vid)
+        cm = _YT_CHAN_RE.search(part[:4000])
+        rows.append({
+            "title": _json_unescape(tm.group(1)).strip(),
+            "source": _json_unescape(cm.group(1)).strip() if cm else "YouTube",
+            "url": "https://www.youtube.com/watch?v=" + vid,
+            "image": f"https://i.ytimg.com/vi/{vid}/mqdefault.jpg",
+            "kind": "video"})
+        if len(rows) >= limit:
+            break
+    if rows:
+        return rows, f"{len(rows)} video"
+    return [], "δεν βρέθηκαν video"
+
+
+def reviews(query, src="articles", limit=20):
+    """Κριτικές ανά πηγή: 'articles' (Google News) ή 'video' (YouTube)."""
+    if src == "video":
+        return youtube_reviews(query, min(limit, 12))
+    return _reviews_articles(query, limit)
 
 
 # --- Σούπερ Μάρκετ: επίσημο API posokanei.gov.gr (ex e-Katanalotis) --- #
