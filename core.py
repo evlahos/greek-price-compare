@@ -26,7 +26,7 @@ from html import unescape
 
 
 APP_NAME = "Ελληνική Σύγκριση Τιμών"
-VERSION = "0.53"
+VERSION = "0.54"
 BESTPRICE_MCP = "https://mcp.bestprice.gr/mcp"
 HERE = os.path.dirname(os.path.abspath(__file__))
 _UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -1528,6 +1528,52 @@ def car_offers(src="gocar", limit=24):
 
 def car_links():
     return [{"name": n, "url": u} for n, u in CAR_LINKS]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ⭐ ΚΡΙΤΙΚΕΣ (Reviews) — αναζήτηση κριτικών/δοκιμών από πολλά περιοδικά & sites
+# μέσω Google News RSS (δωρεάν, XML, χωρίς anti-bot). Για ΟΛΑ τα προϊόντα & αυτοκίνητα.
+# ─────────────────────────────────────────────────────────────────────────────
+_REVIEWS_RSS = "https://news.google.com/rss/search?q={q}&hl=el&gl=GR&ceid=GR:el"
+_REV_ITEM_RE = re.compile(r"<item>(.*?)</item>", re.S)
+_REV_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
+_REV_LINK_RE = re.compile(r"<link>(.*?)</link>", re.S)
+_REV_SRC_RE = re.compile(r"<source[^>]*>(.*?)</source>", re.S)
+_REV_DATE_RE = re.compile(r"<pubDate>(.*?)</pubDate>", re.S)
+
+
+def reviews(query, limit=20):
+    """Κριτικές/δοκιμές για ένα προϊόν ή μοντέλο, από πολλά περιοδικά & sites
+    (Google News RSS). Δουλεύει για κάθε κατηγορία, όχι μόνο αυτοκίνητα."""
+    q = (query or "").strip()
+    if not q:
+        return [], "Δώσε προϊόν ή μοντέλο"
+    url = _REVIEWS_RSS.format(q=urllib.parse.quote(q + " review κριτική δοκιμή"))
+    try:
+        xml = http_get(url, timeout=20, encoding="utf-8")
+    except Exception as exc:
+        return [], f"Κριτικές: {str(exc)[:80]}"
+    rows = []
+    for m in _REV_ITEM_RE.finditer(xml):
+        b = m.group(1)
+        tm, lm = _REV_TITLE_RE.search(b), _REV_LINK_RE.search(b)
+        if not tm or not lm:
+            continue
+        title = unescape(tm.group(1)).strip()
+        sm = _REV_SRC_RE.search(b)
+        src = unescape(sm.group(1)).strip() if sm else ""
+        if src and title.endswith(" - " + src):   # αφαίρεση " - Πηγή" από τον τίτλο
+            title = title[:-(len(src) + 3)].strip()
+        dm = _REV_DATE_RE.search(b)
+        date = dm.group(1)[5:16].strip() if dm else ""   # «16 Nov 2026»
+        if title and lm.group(1).strip():
+            rows.append({"title": title, "url": lm.group(1).strip(),
+                         "source": src, "date": date})
+        if len(rows) >= limit:
+            break
+    if rows:
+        return rows, f"{len(rows)} κριτικές"
+    return [], "δεν βρέθηκαν κριτικές"
 
 
 # --- Σούπερ Μάρκετ: επίσημο API posokanei.gov.gr (ex e-Katanalotis) --- #

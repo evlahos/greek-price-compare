@@ -178,6 +178,17 @@ def api_car_offers():
                     "sources": core.car_sources(), "src": src, "diagnostic": diag})
 
 
+@app.get("/api/reviews")
+def api_reviews():
+    """Κριτικές/δοκιμές για ένα προϊόν ή μοντέλο από πολλά περιοδικά & sites."""
+    q = (request.args.get("q") or "").strip()
+    try:
+        rows, diag = core.reviews(q)
+    except Exception as exc:
+        return jsonify({"reviews": [], "diagnostic": str(exc), "q": q})
+    return jsonify({"reviews": rows, "diagnostic": diag, "q": q})
+
+
 @app.get("/api/offers")
 def api_offers():
     pid = (request.args.get("product_id") or "").strip()

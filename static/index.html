@@ -299,6 +299,11 @@ a.dealcard{text-decoration:none;color:inherit;display:block}
 .dshop-group{border:1px solid var(--stroke);background:var(--panel);border-radius:var(--r2);padding:12px 14px}
 .dshop-cat{font:800 13px Inter;color:var(--ink);margin-bottom:8px}
 .dshop-links{display:flex;flex-wrap:wrap;gap:6px}
+.rev-list{display:flex;flex-direction:column;gap:8px}
+a.rev-item{display:block;text-decoration:none;border:1px solid var(--stroke);background:var(--panel);border-radius:12px;padding:12px 14px;transition:.15s}
+a.rev-item:hover{border-color:var(--stroke2);background:var(--panel2)}
+.rev-ttl{font:700 14px/1.4 Inter;color:var(--ink)}
+.rev-meta{font:600 12px Inter;color:var(--mut);margin-top:4px}
 
 /* ⛽ Καύσιμα */
 .grid-p.fuelmode{display:block}
@@ -387,6 +392,7 @@ select option,.gsel option,.mini option,.sh-act select option{background:var(--b
       <button data-m="fuel" data-i18n="cat_fuel"></button>
       <button data-m="deals" data-i18n="cat_deals"></button>
       <button data-m="car" data-i18n="cat_car"></button>
+      <button data-m="reviews" data-i18n="cat_reviews"></button>
       <button data-m="all" data-i18n="cat_all"></button>
     </div>
     <div class="langsw" id="langsw">
@@ -529,9 +535,11 @@ const T={
     appName:'ΣΥΓΚΡΙΣΗ <b>ΤΙΜΩΝ</b>',
     cat_tech:'🖥 Τεχνολογία',cat_super:'🛒 Σούπερ Μάρκετ',cat_books:'📚 Βιβλία',
     cat_health:'💊 Υγεία & Ομορφιά',cat_fashion:'👕 Μόδα',cat_home:'🏠 Σπίτι',
-    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_fuel:'⛽ Καύσιμα',cat_deals:'🏷️ Προσφορές',cat_car:'🚗 Αυτοκίνητο',cat_all:'✨ Γενική',
+    cat_sports:'🏀 Αθλητικά',cat_toys:'🧸 Παιχνίδια',cat_fuel:'⛽ Καύσιμα',cat_deals:'🏷️ Προσφορές',cat_car:'🚗 Αυτοκίνητο',cat_reviews:'⭐ Κριτικές',cat_all:'✨ Γενική',
     sect_tech:'Προϊόντα',sect_super:'Σούπερ Μάρκετ',sect_books:'Βιβλία',sect_health:'Υγεία & Ομορφιά',
-    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_deals:'Προσφορές & Events',sect_car:'Προσφορές Αυτοκινήτου',sect_all:'Γενική αναζήτηση',
+    sect_fashion:'Μόδα & Αξεσουάρ',sect_home:'Σπίτι',sect_sports:'Αθλητικά',sect_toys:'Παιχνίδια',sect_fuel:'Τιμές Καυσίμων',sect_deals:'Προσφορές & Events',sect_car:'Προσφορές Αυτοκινήτου',sect_reviews:'Κριτικές & Δοκιμές',sect_all:'Γενική αναζήτηση',
+    rev_ph:'Προϊόν ή μοντέλο για κριτικές…',rev_hint:'Γράψε ένα προϊόν ή μοντέλο και πάτα Αναζήτηση για κριτικές από περιοδικά & sites.',
+    rev_title:'⭐ Κριτικές & δοκιμές',rev_loading:'Αναζήτηση κριτικών…',rev_none:'Δεν βρέθηκαν κριτικές. Δοκίμασε άλλον όρο.',
     car_filter_ph:'Φίλτρο μάρκας/μοντέλου…',car_offers_title:'🚗 Τρέχουσες προσφορές νέων αυτοκινήτων',
     car_links_title:'🔗 Μάρκες & πηγές προσφορών',car_loading:'Φόρτωση προσφορών αυτοκινήτου…',
     car_none:'Δεν βρέθηκαν προσφορές αυτή τη στιγμή.',car_src:'Πηγή: gocar.gr',car_allbrands:'Όλες',
@@ -617,9 +625,11 @@ const T={
     appName:'PRICE <b>COMPARE</b>',
     cat_tech:'🖥 Technology',cat_super:'🛒 Supermarket',cat_books:'📚 Books',
     cat_health:'💊 Health & Beauty',cat_fashion:'👕 Fashion',cat_home:'🏠 Home',
-    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_fuel:'⛽ Fuel',cat_deals:'🏷️ Deals',cat_car:'🚗 Car',cat_all:'✨ General',
+    cat_sports:'🏀 Sports',cat_toys:'🧸 Toys',cat_fuel:'⛽ Fuel',cat_deals:'🏷️ Deals',cat_car:'🚗 Car',cat_reviews:'⭐ Reviews',cat_all:'✨ General',
     sect_tech:'Products',sect_super:'Supermarket',sect_books:'Books',sect_health:'Health & Beauty',
-    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_deals:'Deals & Events',sect_car:'Car Offers',sect_all:'General search',
+    sect_fashion:'Fashion & Accessories',sect_home:'Home',sect_sports:'Sports',sect_toys:'Toys',sect_fuel:'Fuel Prices',sect_deals:'Deals & Events',sect_car:'Car Offers',sect_reviews:'Reviews & Tests',sect_all:'General search',
+    rev_ph:'Product or model for reviews…',rev_hint:'Type a product or model and press Search for reviews from magazines & sites.',
+    rev_title:'⭐ Reviews & tests',rev_loading:'Searching reviews…',rev_none:'No reviews found. Try another term.',
     car_filter_ph:'Filter by brand/model…',car_offers_title:'🚗 Current new-car offers',
     car_links_title:'🔗 Brands & offer sources',car_loading:'Loading car offers…',
     car_none:'No offers found right now.',car_src:'Source: gocar.gr',car_allbrands:'All',
@@ -792,9 +802,16 @@ function setMode(m){
     if(m==='fuel')loadFuel(); else if(m==='car')loadCar(); else loadDeals();
   } else {
     if(wasSpecial){ if(_qStash!=null){$('#q').value=_qStash;_qStash=null;} const g=$('#grid');g.classList.remove('fuelmode');g.classList.remove('dealsmode');g.innerHTML=''; $('#statusTxt').textContent=t('status_ready'); }
-    $('#q').placeholder=t('q_ph');
-    $('#chips').style.display='';
-    renderChips();
+    if(m==='reviews'){
+      $('#q').placeholder=t('rev_ph'); $('#chips').style.display='none';
+      const g=$('#grid'); g.classList.remove('fuelmode','dealsmode');
+      if($('#q').value.trim()) doReviews($('#q').value);
+      else g.innerHTML=`<div class="empty"><div class="big">⭐</div>${esc(t('rev_hint'))}</div>`;
+    } else {
+      $('#q').placeholder=t('q_ph');
+      $('#chips').style.display='';
+      renderChips();
+    }
   }
 }
 $('#seg').onclick=e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.m)};
@@ -917,6 +934,7 @@ function runSearch(exact){
   if(mode==='fuel'){ loadFuel(); return; }
   if(mode==='deals'){ loadDeals(); return; }
   if(mode==='car'){ renderCarCards(); return; }
+  if(mode==='reviews'){ doReviews($('#q').value); return; }
   if(window.EventSource) doSearchStream(exact); else doSearch(exact);
 }
 $('#go').onclick=()=>runSearch(false);
@@ -1236,6 +1254,24 @@ function renderCarCards(){
       <div class="thumb" style="${img}"><span class="src">${esc(o.source||'')}</span></div>
       <div class="body"><div class="ttl">${esc(o.title||'')}</div></div></a>`;
   }).join('');
+}
+
+/* ---------- ⭐ Κριτικές (Reviews) ---------- */
+async function doReviews(q){
+  q=(q||'').trim(); if(!q)return;
+  const g=$('#grid'); g.classList.remove('fuelmode','dealsmode'); g.innerHTML=skelCards(5); busy(true,t('rev_loading'));
+  let d; try{ d=await api('/api/reviews?q='+encodeURIComponent(q)); }
+  catch(e){ d={reviews:[]}; }
+  busy(false,''); $('#statusTxt').textContent='';
+  renderReviews((d&&d.reviews)||[]);
+}
+function renderReviews(list){
+  const g=$('#grid'); g.classList.remove('fuelmode','dealsmode');
+  if(!list.length){ g.innerHTML=`<div class="empty"><div class="big">⭐</div>${esc(t('rev_none'))}</div>`; return; }
+  g.innerHTML=`<div class="deals-wrap"><div class="dsec-title">${esc(t('rev_title'))}</div>
+    <div class="rev-list">`+list.map(r=>`<a class="rev-item" href="${esc(r.url)}" target="_blank" rel="noopener">
+      <div class="rev-ttl">${esc(r.title||'')}</div>
+      <div class="rev-meta">${esc(r.source||'')}${r.date?' · '+esc(r.date):''}</div></a>`).join('')+`</div></div>`;
 }
 
 function renderProducts(){
